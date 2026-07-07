@@ -109,7 +109,29 @@ java -jar target/api-test-orchestrator-0.1.0-SNAPSHOT.jar \
   /tests/create_case.feature
 ```
 
+## Releases
+
+GitHub Actions builds release JARs from version tags. To publish a release,
+create and push a tag whose name starts with `v`:
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+The release workflow derives Maven version `0.1.0` from tag `v0.1.0`, runs the
+test suite, builds the shaded JAR, verifies that MySQL Connector/J and
+`protobuf-java` are not bundled, and publishes these GitHub Release assets:
+
+- `api-test-orchestrator-v0.1.0.jar`
+- `api-test-orchestrator-v0.1.0.jar.sha256`
+
+If release creation fails with a permissions error, enable read/write workflow
+permissions for GitHub Actions in the repository settings.
+
 ## License and JDBC Drivers
+
+Copyright 2026 API Test Orchestrator contributors.
 
 The project source is licensed under Apache License 2.0. The shaded executable
 JAR bundles third-party libraries under their own licenses; see `NOTICE` and

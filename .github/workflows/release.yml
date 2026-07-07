@@ -1,0 +1,95 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build release JAR
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Derive release version
+        id: release
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          tag="${GITHUB_REF_NAME}"
+          version="${tag#v}"
+
+          if [[ -z "${version}" || "${version}" == "${tag}" ]]; then
+            echo "Release tags must start with v, for example v0.1.0." >&2
+            exit 1
+          fi
+
+          echo "tag=${tag}" >> "${GITHUB_OUTPUT}"
+          echo "version=${version}" >> "${GITHUB_OUTPUT}"
+          echo "jar_name=api-test-orchestrator-${tag}.jar" >> "${GITHUB_OUTPUT}"
+          echo "checksum_name=api-test-orchestrator-${tag}.jar.sha256" >> "${GITHUB_OUTPUT}"
+
+      - name: Set Maven release version
+        run: mvn -B org.codehaus.mojo:versions-maven-plugin:2.21.0:set -DnewVersion="${{ steps.release.outputs.version }}" -DgenerateBackupPoms=false
+
+      - name: Run tests
+        run: mvn -B test
+
+      - name: Build shaded JAR
+        run: mvn -B -DskipTests package
+
+      - name: Verify release JAR contents
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          jar_path="target/api-test-orchestrator-${{ steps.release.outputs.version }}.jar"
+          test -f "${jar_path}"
+
+          jar tf "${jar_path}" > jar-contents.txt
+
+          if grep -E "^(com/mysql|com/google/protobuf)|mysql-connector|protobuf-java" jar-contents.txt; then
+            echo "Release JAR must not bundle MySQL Connector/J or protobuf-java." >&2
+            exit 1
+          fi
+
+          grep -Fx "META-INF/LICENSE" jar-contents.txt
+          grep -Fx "META-INF/NOTICE" jar-contents.txt
+          grep -Fx "META-INF/THIRD-PARTY.txt" jar-contents.txt
+
+      - name: Prepare release assets
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          jar_path="target/api-test-orchestrator-${{ steps.release.outputs.version }}.jar"
+          jar_name="${{ steps.release.outputs.jar_name }}"
+          checksum_name="${{ steps.release.outputs.checksum_name }}"
+
+          cp "${jar_path}" "${jar_name}"
+          sha256sum "${jar_name}" > "${checksum_name}"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ steps.release.outputs.tag }}" \
+            "${{ steps.release.outputs.jar_name }}" \
+            "${{ steps.release.outputs.checksum_name }}" \
+            --title "${{ steps.release.outputs.tag }}" \
+            --generate-notes \
+            --verify-tag
