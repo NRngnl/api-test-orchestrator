@@ -109,6 +109,25 @@ java -jar target/api-test-orchestrator-0.1.0-SNAPSHOT.jar \
   /tests/create_case.feature
 ```
 
+## API JSON Log Colors
+
+API stdout lines that parse as JSON can be colorized by log level. Configure the
+color map under `logging.jsonLogColors`; non-JSON API lines remain uncolored.
+
+```yaml
+logging:
+  colors: true
+  jsonLogColors:
+    DEBUG: cyan
+    INFO: green
+    WARN: yellow
+    ERROR: red
+```
+
+Supported colors are `black`, `red`, `green`, `yellow`, `blue`, `magenta`,
+`cyan`, `white`, and their `bright-*` variants. Pass `--no-color` to the CLI to
+disable ANSI color output for CI logs.
+
 ## Releases
 
 GitHub Actions builds release JARs from version tags. To publish a release,

@@ -53,3 +53,9 @@ logging:
     - health
   failedOnly: false
   sqlStats: true
+  colors: true
+  jsonLogColors:
+    DEBUG: cyan
+    INFO: green
+    WARN: yellow
+    ERROR: red

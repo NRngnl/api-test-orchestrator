@@ -7,6 +7,7 @@ import java.nio.file.Path;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class FrameworkConfigLoaderTest {
     @Test
@@ -31,5 +32,27 @@ class FrameworkConfigLoaderTest {
         assertEquals("root", config.database.username);
         assertEquals("secret", config.database.password);
         assertEquals(7, config.database.defaults.get("tenant_id"));
+    }
+
+    @Test
+    void loadsJsonLogColorConfiguration() throws Exception {
+        Path configPath = Files.createTempFile("api-test-orchestrator", ".yml");
+        Files.writeString(configPath, """
+                logging:
+                  colors: true
+                  jsonLogColors:
+                    DEBUG: cyan
+                    INFO: green
+                    WARN: yellow
+                    ERROR: magenta
+                """);
+
+        FrameworkConfig config = new FrameworkConfigLoader(Map.of()).load(configPath);
+
+        assertTrue(config.logging.colors);
+        assertEquals("cyan", config.logging.jsonLogColors.get("DEBUG"));
+        assertEquals("green", config.logging.jsonLogColors.get("INFO"));
+        assertEquals("yellow", config.logging.jsonLogColors.get("WARN"));
+        assertEquals("magenta", config.logging.jsonLogColors.get("ERROR"));
     }
 }

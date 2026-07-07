@@ -41,6 +41,9 @@ public class ApiTestOrchestratorCli implements Callable<Integer> {
     @Option(names = "--failed-only", description = "Buffer API logs and print the latest request logs on failure")
     boolean failedOnly;
 
+    @Option(names = "--no-color", description = "Disable ANSI colors in API JSON log output")
+    boolean noColor;
+
     @Option(names = "--no-api", description = "Do not start the configured API process")
     boolean noApi;
 
@@ -62,12 +65,13 @@ public class ApiTestOrchestratorCli implements Callable<Integer> {
 
         LogFilterRule filterRule = config.toLogFilterRule();
         RequestLogCorrelator correlator = new RequestLogCorrelator();
+        ApiLogFormatter apiLogFormatter = new ApiLogFormatter(config.logging);
         ApiProcessSpec apiSpec = noApi ? null : config.toApiProcessSpec();
 
         try (ApiProcessSupervisor api = new ApiProcessSupervisor()) {
             if (apiSpec != null) {
                 System.out.println("[api] starting: " + String.join(" ", apiSpec.command()));
-                api.start(apiSpec, event -> onApiLog(event, filterRule, correlator, config.logging.failedOnly), line -> {
+                api.start(apiSpec, event -> onApiLog(event, filterRule, correlator, apiLogFormatter, config.logging.failedOnly), line -> {
                     if (!config.logging.failedOnly) {
                         System.err.println("[api:stderr] " + line);
                     }
@@ -84,14 +88,14 @@ public class ApiTestOrchestratorCli implements Callable<Integer> {
             result.features().forEach(feature -> System.out.println(ProgressLineFormatter.featureLine(feature)));
             if (!result.passed() && config.logging.failedOnly) {
                 System.out.println("[api] latest request logs:");
-                correlator.lastRequestLogs().forEach(event -> System.out.println("  " + event.raw()));
+                correlator.lastRequestLogs().forEach(event -> System.out.println(apiLogFormatter.indentedApiLine(event)));
             }
             printSummary(result);
             return result.passed() ? 0 : 1;
         }
     }
 
-    private void applyOverrides(FrameworkConfig config) {
+    void applyOverrides(FrameworkConfig config) {
         if (!includePatterns.isEmpty()) {
             config.logging.includePatterns = includePatterns;
         }
@@ -104,12 +108,20 @@ public class ApiTestOrchestratorCli implements Callable<Integer> {
         if (failedOnly) {
             config.logging.failedOnly = true;
         }
+        if (noColor) {
+            config.logging.colors = false;
+        }
     }
 
-    private static void onApiLog(LogEvent event, LogFilterRule filterRule, RequestLogCorrelator correlator, boolean failedOnly) {
+    private static void onApiLog(
+            LogEvent event,
+            LogFilterRule filterRule,
+            RequestLogCorrelator correlator,
+            ApiLogFormatter apiLogFormatter,
+            boolean failedOnly) {
         correlator.accept(event);
         if (!failedOnly && filterRule.includes(event)) {
-            System.out.println("[api] " + event.raw());
+            System.out.println(apiLogFormatter.apiLine(event));
         }
     }
 

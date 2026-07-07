@@ -129,6 +129,15 @@ public class FrameworkConfig {
         return generatedColumns;
     }
 
+    private static Map<String, String> defaultJsonLogColors() {
+        Map<String, String> colors = new LinkedHashMap<>();
+        colors.put("DEBUG", "cyan");
+        colors.put("INFO", "green");
+        colors.put("WARN", "yellow");
+        colors.put("ERROR", "red");
+        return colors;
+    }
+
     public static class Api {
         public List<String> command = new ArrayList<>();
         public String workingDir;
@@ -178,5 +187,7 @@ public class FrameworkConfig {
         public List<String> excludePatterns = new ArrayList<>();
         public boolean failedOnly;
         public boolean sqlStats = true;
+        public boolean colors = true;
+        public Map<String, String> jsonLogColors = defaultJsonLogColors();
     }
 }
