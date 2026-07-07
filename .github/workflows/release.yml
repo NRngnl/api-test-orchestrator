@@ -83,13 +83,24 @@ jobs:
           cp "${jar_path}" "${jar_name}"
           sha256sum "${jar_name}" > "${checksum_name}"
 
-      - name: Create GitHub Release
+      - name: Create or update GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
+        shell: bash
         run: |
-          gh release create "${{ steps.release.outputs.tag }}" \
-            "${{ steps.release.outputs.jar_name }}" \
-            "${{ steps.release.outputs.checksum_name }}" \
-            --title "${{ steps.release.outputs.tag }}" \
-            --generate-notes \
-            --verify-tag
+          set -euo pipefail
+
+          tag="${{ steps.release.outputs.tag }}"
+          jar_name="${{ steps.release.outputs.jar_name }}"
+          checksum_name="${{ steps.release.outputs.checksum_name }}"
+
+          if gh release view "${tag}" >/dev/null 2>&1; then
+            gh release upload "${tag}" "${jar_name}" "${checksum_name}" --clobber
+          else
+            gh release create "${tag}" \
+              "${jar_name}" \
+              "${checksum_name}" \
+              --title "${tag}" \
+              --generate-notes \
+              --verify-tag
+          fi
