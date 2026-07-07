@@ -1,0 +1,57 @@
+Third-Party Software Notices
+============================
+
+This project is licensed under Apache License 2.0. The shaded executable JAR
+also bundles third-party software that remains under its own license terms.
+
+Bundled in the shaded JAR
+-------------------------
+
+- ch.qos.logback:logback-classic:1.5.18 - EPL-1.0 or LGPL
+- ch.qos.logback:logback-core:1.5.18 - EPL-1.0 or LGPL
+- com.fasterxml.jackson.core:jackson-annotations:2.17.2 - Apache-2.0
+- com.fasterxml.jackson.core:jackson-core:2.17.2 - Apache-2.0
+- com.fasterxml.jackson.core:jackson-databind:2.17.2 - Apache-2.0
+- com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:2.17.2 - Apache-2.0
+- com.google.code.gson:gson:2.8.1 - Apache-2.0
+- com.jayway.jsonpath:json-path:3.0.0 - Apache-2.0
+- com.moandjiezana.toml:toml4j:0.7.2 - MIT
+- com.zaxxer:HikariCP:6.3.0 - Apache-2.0
+- de.siegmar:fastcsv:4.3.0 - MIT
+- info.picocli:picocli:4.7.6 - Apache-2.0
+- io.karatelabs:karate-core:2.1.0 - MIT
+- io.karatelabs:karate-js:2.1.0 - MIT
+- io.netty:netty-buffer:4.2.15.Final - Apache-2.0
+- io.netty:netty-codec-base:4.2.15.Final - Apache-2.0
+- io.netty:netty-codec-compression:4.2.15.Final - Apache-2.0
+- io.netty:netty-codec-http:4.2.15.Final - Apache-2.0
+- io.netty:netty-common:4.2.15.Final - Apache-2.0
+- io.netty:netty-handler:4.2.15.Final - Apache-2.0
+- io.netty:netty-resolver:4.2.15.Final - Apache-2.0
+- io.netty:netty-transport:4.2.15.Final - Apache-2.0
+- io.netty:netty-transport-native-unix-common:4.2.15.Final - Apache-2.0
+- net.minidev:accessors-smart:2.6.0 - Apache-2.0
+- net.minidev:json-smart:2.6.0 - Apache-2.0
+- ognl:ognl:3.3.4 - Apache-2.0
+- org.apache.httpcomponents.client5:httpclient5:5.6.1 - Apache-2.0
+- org.apache.httpcomponents.core5:httpcore5:5.4 - Apache-2.0
+- org.apache.httpcomponents.core5:httpcore5-h2:5.4 - Apache-2.0
+- org.attoparser:attoparser:2.0.7.RELEASE - Apache-2.0
+- org.brotli:dec:0.1.2 - MIT
+- org.javassist:javassist:3.29.0-GA - Apache-2.0, LGPL-2.1, or MPL-1.1
+- org.ow2.asm:asm:9.7.1 - BSD-3-Clause
+- org.slf4j:slf4j-api:2.0.16 - MIT
+- org.thymeleaf:thymeleaf:3.1.5.RELEASE - Apache-2.0
+- org.unbescape:unbescape:1.1.6.RELEASE - Apache-2.0
+- org.yaml:snakeyaml:2.6 - Apache-2.0
+
+Runtime-provided database drivers
+---------------------------------
+
+The shaded JAR does not bundle MySQL Connector/J. If you use MySQL, provide the
+driver on the runtime classpath yourself:
+
+- com.mysql:mysql-connector-j:9.2.0 - GPLv2 with Universal FOSS Exception 1.0
+- com.google.protobuf:protobuf-java:4.29.0 - BSD-3-Clause
+
+See README.md for the runtime classpath example.

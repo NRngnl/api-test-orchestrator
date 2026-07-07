@@ -1,0 +1,55 @@
+api:
+  command:
+    - /opt/example-api/bin/server
+  healthUrl: http://localhost:1323/
+  healthTimeoutSeconds: 30
+  healthIntervalMillis: 1000
+
+karate:
+  workingDir: /app
+  configDir: /app
+  outputDir: /tmp/report
+  threads: 1
+  outputHtml: false
+  outputJsonLines: true
+  outputCucumberJson: true
+  outputJunitXml: false
+  consoleLevel: info
+  defaultPaths:
+    - /tests
+
+database:
+  defaultName: primary
+  targets:
+    primary:
+      jdbcUrl: jdbc:mysql://mysql:3306/test_db
+      username: root
+      password: root
+      defaults:
+        tenant_id: 7
+      tableDefaults:
+        cases:
+          status: OPEN
+          created_by: 2
+        users:
+          active: true
+      generatedColumns:
+        fixture_key:
+          tables:
+            - cases
+          length: 16
+    audit:
+      jdbcUrl: jdbc:mysql://mysql:3306/audit_db
+      username: root
+      password: root
+      tableDefaults:
+        events:
+          source: feature
+
+logging:
+  level: ALL
+  includePatterns: []
+  excludePatterns:
+    - health
+  failedOnly: false
+  sqlStats: true
