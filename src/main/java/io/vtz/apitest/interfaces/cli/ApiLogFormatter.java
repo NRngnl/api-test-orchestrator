@@ -12,10 +12,10 @@ import java.util.Map;
 /**
  * Colors API JSON log lines for the console.
  *
- * <p>Each line is tinted with the configured per-level base color; on top of that, key/pattern
- * values are highlighted: the SQL query in bright yellow, {@code rows_affected} in bright green,
- * and the HTTP {@code status} in red ({@code >= 400}) or green. This mirrors a reference
- * log-classification/coloring implementation.
+ * <p>Each structured line is tinted with the configured per-log-type base color, falling back to
+ * the per-level palette when no type color is configured. On top of that, key/pattern values are
+ * highlighted with the configured {@code logging.jsonLogHighlightColors} palette. This mirrors a
+ * reference log-classification/coloring implementation.
  *
  * <p><b>Leak safety.</b> Untrusted log content is stripped of control characters before output,
  * so an escape sequence embedded in the log text cannot inject color/formatting into the
@@ -24,9 +24,8 @@ import java.util.Map;
  * token or past the end of the line.
  *
  * <p><b>Type coverage.</b> Only {@code API_SQL} and {@code API_REQUEST} carry intra-line key
- * highlights. {@code API_ERROR}, {@code API_BODY_DUMP} and {@code API_GENERAL} intentionally
- * render with the configurable per-level base tint only (error logs already map to red via the
- * default level palette); this keeps colors configurable instead of hard-coded per type.
+ * highlights. {@code API_ERROR}, {@code API_BODY_DUMP} and {@code API_GENERAL} render with their
+ * configured base tint only; this keeps colors configurable instead of hard-coded per type.
  */
 final class ApiLogFormatter {
     private static final ObjectMapper MAPPER = new ObjectMapper();
@@ -35,10 +34,11 @@ final class ApiLogFormatter {
     private static final String CSI = ((char) 27) + "[";
     private static final String RESET = CSI + "0m";
     private static final String BOLD = CSI + "1m";
-    private static final String SQL_HIGHLIGHT = CSI + "93m";                 // bright yellow
-    private static final String ROWS_HIGHLIGHT = CSI + "92m" + BOLD;         // bright green, bold
-    private static final String STATUS_OK_HIGHLIGHT = CSI + "32m";           // green
-    private static final String STATUS_ERROR_HIGHLIGHT = CSI + "31m" + BOLD; // red, bold
+    private static final String DIMMED = CSI + "2m";
+    private static final String SQL_HIGHLIGHT = "sql";
+    private static final String ROWS_HIGHLIGHT = "rowsAffected";
+    private static final String STATUS_OK_HIGHLIGHT = "statusOk";
+    private static final String STATUS_ERROR_HIGHLIGHT = "statusError";
     private static final int STATUS_ERROR_THRESHOLD = 400;
 
     private static final Map<String, String> ANSI_COLORS = Map.ofEntries(
@@ -75,11 +75,12 @@ final class ApiLogFormatter {
 
     private String format(String prefix, LogEvent event) {
         String body = sanitize(event == null || event.raw() == null ? "" : event.raw());
-        String base = baseColor(event);
+        LogType type = LogType.classify(event);
+        String base = baseColor(event, type);
         if (base == null) {
             return prefix + body;
         }
-        String highlighted = highlight(body, LogType.classify(event), event, base);
+        String highlighted = highlight(body, type, event, base);
         return base + prefix + highlighted + RESET;
     }
 
@@ -102,18 +103,25 @@ final class ApiLogFormatter {
         return cleaned == null ? text : cleaned.toString();
     }
 
-    private String baseColor(LogEvent event) {
-        if (!logging.colors || event == null || !event.structured() || logging.jsonLogColors == null) {
+    private String baseColor(LogEvent event, LogType type) {
+        if (!logging.colors || event == null || !event.structured()) {
             return null;
         }
-        String configured = logging.jsonLogColors.get(event.level().name());
-        if (configured == null) {
-            configured = logging.jsonLogColors.get(event.level().name().toLowerCase(Locale.ROOT));
+        String configured = configuredValue(logging.jsonLogTypeColors, type == null ? null : type.name());
+        if (configured == null && type != null) {
+            configured = configuredValue(logging.jsonLogTypeColors, typeKey(type));
         }
-        return toAnsiColor(configured);
+        if (configured == null) {
+            configured = configuredValue(logging.jsonLogColors, event.level().name());
+        }
+        if (configured == null) {
+            configured = configuredValue(logging.jsonLogColors, event.level().name().toLowerCase(Locale.ROOT));
+        }
+
+        return toAnsiStyle(configured);
     }
 
-    private static String highlight(String body, LogType type, LogEvent event, String base) {
+    private String highlight(String body, LogType type, LogEvent event, String base) {
         return switch (type) {
             case API_SQL -> highlightRows(highlightSql(body, event, base), event, base);
             case API_REQUEST -> highlightStatus(body, event, base);
@@ -127,9 +135,13 @@ final class ApiLogFormatter {
      * {@code msg}) is not mistakenly highlighted and escaped/multi-line SQL still matches the raw
      * wire text.
      */
-    private static String highlightSql(String body, LogEvent event, String base) {
+    private String highlightSql(String body, LogEvent event, String base) {
         String sql = event.sql();
         if (sql == null || sql.isBlank()) {
+            return body;
+        }
+        String color = highlightColor(SQL_HIGHLIGHT);
+        if (color == null) {
             return body;
         }
         String encoded;
@@ -145,24 +157,37 @@ final class ApiLogFormatter {
         }
         int valueStart = keyIndex + keyToken.length() + 1; // skip the opening quote
         int valueLength = encoded.length() - 2;             // drop the surrounding quotes
-        return wrap(body, valueStart, valueLength, SQL_HIGHLIGHT, base);
+        return wrap(body, valueStart, valueLength, color, base);
     }
 
-    private static String highlightRows(String body, LogEvent event, String base) {
+    private String highlightRows(String body, LogEvent event, String base) {
         Long rows = event.rowsAffected();
         if (rows == null) {
             return body;
         }
-        return highlightNumber(body, "rows_affected", Long.toString(rows), ROWS_HIGHLIGHT, base);
+        String color = highlightColor(ROWS_HIGHLIGHT);
+        if (color == null) {
+            return body;
+        }
+        return highlightNumber(body, "rows_affected", Long.toString(rows), color, base);
     }
 
-    private static String highlightStatus(String body, LogEvent event, String base) {
+    private String highlightStatus(String body, LogEvent event, String base) {
         Integer status = event.status();
         if (status == null) {
             return body;
         }
-        String color = status >= STATUS_ERROR_THRESHOLD ? STATUS_ERROR_HIGHLIGHT : STATUS_OK_HIGHLIGHT;
+        String color = highlightColor(
+                status >= STATUS_ERROR_THRESHOLD ? STATUS_ERROR_HIGHLIGHT : STATUS_OK_HIGHLIGHT);
+        if (color == null) {
+            return body;
+        }
         return highlightNumber(body, "status", Integer.toString(status), color, base);
+    }
+
+    private String highlightColor(String key) {
+        String configured = configuredValue(logging.jsonLogHighlightColors, key);
+        return toAnsiStyle(configured);
     }
 
     /**
@@ -197,7 +222,7 @@ final class ApiLogFormatter {
                 + body.substring(end);
     }
 
-    private static String toAnsiColor(String configured) {
+    private static String toAnsiStyle(String configured) {
         if (configured == null || configured.isBlank()) {
             return null;
         }
@@ -205,6 +230,60 @@ final class ApiLogFormatter {
                 .replace('-', '_')
                 .replace(' ', '_')
                 .toUpperCase(Locale.ROOT);
-        return ANSI_COLORS.get(key);
+        String directColor = ANSI_COLORS.get(key);
+        if (directColor != null) {
+            return directColor;
+        }
+        StringBuilder style = new StringBuilder();
+        boolean hasColor = false;
+        for (String token : configured.trim().split("[,\\s]+")) {
+            if (token.isBlank()) {
+                continue;
+            }
+            String normalized = token.trim().replace('-', '_').toUpperCase(Locale.ROOT);
+            if ("BOLD".equals(normalized)) {
+                style.append(BOLD);
+                continue;
+            }
+            if ("DIM".equals(normalized) || "DIMMED".equals(normalized)) {
+                style.append(DIMMED);
+                continue;
+            }
+            String color = ANSI_COLORS.get(normalized);
+            if (color != null) {
+                style.append(color);
+                hasColor = true;
+            }
+        }
+        return hasColor ? style.toString() : null;
+    }
+
+    private static String configuredValue(Map<String, String> values, String key) {
+        if (values == null || key == null) {
+            return null;
+        }
+        String configured = values.get(key);
+        if (configured != null) {
+            return configured;
+        }
+        String normalizedKey = normalizeKey(key);
+        return values.entrySet().stream()
+                .filter(entry -> normalizeKey(entry.getKey()).equals(normalizedKey))
+                .map(Map.Entry::getValue)
+                .findFirst()
+                .orElse(null);
+    }
+
+    private static String typeKey(LogType type) {
+        String[] words = type.name().toLowerCase(Locale.ROOT).split("_");
+        StringBuilder key = new StringBuilder(words[0]);
+        for (int i = 1; i < words.length; i++) {
+            key.append(words[i].substring(0, 1).toUpperCase(Locale.ROOT)).append(words[i].substring(1));
+        }
+        return key.toString();
+    }
+
+    private static String normalizeKey(String key) {
+        return key == null ? "" : key.replaceAll("[^A-Za-z0-9]", "").toLowerCase(Locale.ROOT);
     }
 }

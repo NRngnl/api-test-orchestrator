@@ -112,7 +112,9 @@ java -jar target/api-test-orchestrator-0.1.0-SNAPSHOT.jar \
 ## API JSON Log Colors
 
 API stdout lines that parse as JSON can be colorized by log level. Configure the
-color map under `logging.jsonLogColors`; non-JSON API lines remain uncolored.
+fallback level palette under `logging.jsonLogColors`, per-log-type base colors
+under `logging.jsonLogTypeColors`, and key/value highlights under
+`logging.jsonLogHighlightColors`; non-JSON API lines remain uncolored.
 
 ```yaml
 logging:
@@ -122,11 +124,23 @@ logging:
     INFO: green
     WARN: yellow
     ERROR: red
+  jsonLogTypeColors:
+    apiError: red
+    apiSql: bright-blue
+    apiBodyDump: green
+    apiRequest: bright-white dimmed
+    apiGeneral: bright-white dimmed
+  jsonLogHighlightColors:
+    sql: bright-yellow
+    rowsAffected: bright-green bold
+    statusOk: green
+    statusError: red bold
 ```
 
 Supported colors are `black`, `red`, `green`, `yellow`, `blue`, `magenta`,
-`cyan`, `white`, and their `bright-*` variants. Pass `--no-color` to the CLI to
-disable ANSI color output for CI logs.
+`cyan`, `white`, and their `bright-*` variants. Add `bold` or `dimmed` to a
+color value to apply extra styling. Pass `--no-color` to the CLI to disable ANSI
+color output for CI logs.
 
 ## Releases
 

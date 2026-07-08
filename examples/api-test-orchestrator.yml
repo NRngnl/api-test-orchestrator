@@ -59,3 +59,14 @@ logging:
     INFO: green
     WARN: yellow
     ERROR: red
+  jsonLogTypeColors:
+    apiError: red
+    apiSql: bright-blue
+    apiBodyDump: green
+    apiRequest: bright-white dimmed
+    apiGeneral: bright-white dimmed
+  jsonLogHighlightColors:
+    sql: bright-yellow
+    rowsAffected: bright-green bold
+    statusOk: green
+    statusError: red bold

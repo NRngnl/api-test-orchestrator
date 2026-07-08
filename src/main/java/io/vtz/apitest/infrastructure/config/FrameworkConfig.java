@@ -138,6 +138,25 @@ public class FrameworkConfig {
         return colors;
     }
 
+    private static Map<String, String> defaultJsonLogHighlightColors() {
+        Map<String, String> colors = new LinkedHashMap<>();
+        colors.put("sql", "bright-yellow");
+        colors.put("rowsAffected", "bright-green bold");
+        colors.put("statusOk", "green");
+        colors.put("statusError", "red bold");
+        return colors;
+    }
+
+    private static Map<String, String> defaultJsonLogTypeColors() {
+        Map<String, String> colors = new LinkedHashMap<>();
+        colors.put("apiError", "red");
+        colors.put("apiSql", "bright-blue");
+        colors.put("apiBodyDump", "green");
+        colors.put("apiRequest", "bright-white dimmed");
+        colors.put("apiGeneral", "bright-white dimmed");
+        return colors;
+    }
+
     public static class Api {
         public List<String> command = new ArrayList<>();
         public String workingDir;
@@ -189,5 +208,7 @@ public class FrameworkConfig {
         public boolean sqlStats = true;
         public boolean colors = true;
         public Map<String, String> jsonLogColors = defaultJsonLogColors();
+        public Map<String, String> jsonLogTypeColors = defaultJsonLogTypeColors();
+        public Map<String, String> jsonLogHighlightColors = defaultJsonLogHighlightColors();
     }
 }
