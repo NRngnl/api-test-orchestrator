@@ -36,7 +36,8 @@ COPY --from=godotenv /out/godotenv /usr/local/bin/godotenv
 
 COPY --chmod=755 docker/runner/entrypoint.sh /usr/local/bin/api-test-orchestrator-entrypoint
 
-ENV ATO_CLASSPATH="/app/api-test-orchestrator.jar:/app/lib/*:/mocks:/shareutils:/app" \
+ENV PATH="/usr/local/bin:${PATH}" \
+    ATO_CLASSPATH="/app/api-test-orchestrator.jar:/app/lib/*:/mocks:/shareutils:/app" \
     ATO_MOCK_SSL_GENERATE=false \
     ATO_MOCK_SSL_SUBJECT="/CN=localhost" \
     ATO_MOCK_SSL_SAN="DNS:localhost" \

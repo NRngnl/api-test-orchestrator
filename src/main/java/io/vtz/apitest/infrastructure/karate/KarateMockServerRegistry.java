@@ -16,6 +16,8 @@ public class KarateMockServerRegistry implements MockServerPort {
 
     @Override
     public synchronized RunningMockServer start(MockServerSpec spec) {
+        stopExistingServerOnFixedPort(spec.port());
+
         MockServer.Builder builder = MockServer.feature(spec.feature())
                 .port(spec.port())
                 .ssl(spec.ssl())
@@ -57,6 +59,17 @@ public class KarateMockServerRegistry implements MockServerPort {
     @Override
     public synchronized List<RunningMockServer> runningServers() {
         return servers.values().stream().map(Entry::running).toList();
+    }
+
+    private void stopExistingServerOnFixedPort(int port) {
+        if (port == 0) {
+            return;
+        }
+        runningServers().stream()
+                .filter(server -> server.port() == port)
+                .map(RunningMockServer::id)
+                .toList()
+                .forEach(this::stop);
     }
 
     private record Entry(MockServer server, RunningMockServer running) {
