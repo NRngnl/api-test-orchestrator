@@ -12,27 +12,49 @@ import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 public class ApiProcessSupervisor implements ApiProcessPort {
+    private static final Duration GRACEFUL_STOP_TIMEOUT = Duration.ofSeconds(5);
+    private static final Duration FORCED_STOP_TIMEOUT = Duration.ofSeconds(5);
+
     private final JsonLogParser logParser = new JsonLogParser();
     private Process process;
+    private AsyncSink<LogEvent> stdoutSink;
+    private AsyncSink<String> stderrSink;
 
     @Override
     public synchronized void start(ApiProcessSpec spec, Consumer<LogEvent> stdout, Consumer<String> stderr) {
-        if (isRunning()) {
+        if (process != null && !process.isAlive()) {
+            process = null;
+            closeSinks();
+        }
+        if (process != null) {
             throw new IllegalStateException("API process is already running");
         }
+        Process started = null;
+        AsyncSink<LogEvent> startedStdoutSink = null;
+        AsyncSink<String> startedStderrSink = null;
         try {
             ProcessBuilder builder = new ProcessBuilder(spec.command());
             if (spec.workingDir() != null) {
                 builder.directory(spec.workingDir().toFile());
             }
             builder.environment().putAll(spec.environment());
-            process = builder.start();
-            Thread.ofVirtual().start(() -> readStdout(stdout));
-            Thread.ofVirtual().start(() -> readStderr(stderr));
+            started = builder.start();
+            startedStdoutSink = new AsyncSink<>("ato-api-stdout-log-consumer", stdout);
+            startedStderrSink = new AsyncSink<>("ato-api-stderr-log-consumer", stderr);
+            process = started;
+            stdoutSink = startedStdoutSink;
+            stderrSink = startedStderrSink;
+            Process runningProcess = started;
+            AsyncSink<LogEvent> runningStdoutSink = startedStdoutSink;
+            AsyncSink<String> runningStderrSink = startedStderrSink;
+            Thread.ofVirtual().name("ato-api-stdout-reader").start(() -> readStdout(runningProcess, runningStdoutSink));
+            Thread.ofVirtual().name("ato-api-stderr-reader").start(() -> readStderr(runningProcess, runningStderrSink));
         } catch (Exception e) {
+            cleanupFailedStart(started, startedStdoutSink, startedStderrSink);
             throw new IllegalStateException("Failed to start API process: " + spec.command(), e);
         }
     }
@@ -41,10 +63,15 @@ public class ApiProcessSupervisor implements ApiProcessPort {
     public boolean awaitReady(ApiProcessSpec spec) {
         Instant deadline = Instant.now().plus(spec.healthTimeout());
         while (Instant.now().isBefore(deadline)) {
+            if (Thread.currentThread().isInterrupted() || hasExited()) {
+                return false;
+            }
             if (canConnect(spec)) {
                 return true;
             }
-            sleep(spec.healthInterval());
+            if (!sleep(spec.healthInterval())) {
+                return false;
+            }
         }
         return false;
     }
@@ -54,18 +81,25 @@ public class ApiProcessSupervisor implements ApiProcessPort {
         if (process == null) {
             return 0;
         }
-        process.destroy();
+        Process stopping = process;
+        stopping.destroy();
         try {
-            if (!process.waitFor(5, java.util.concurrent.TimeUnit.SECONDS)) {
-                process.destroyForcibly();
+            if (!stopping.waitFor(GRACEFUL_STOP_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS)) {
+                stopping.destroyForcibly();
+                if (!stopping.waitFor(FORCED_STOP_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS)) {
+                    return 1;
+                }
             }
-            return process.exitValue();
+            return stopping.exitValue();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            process.destroyForcibly();
+            stopping.destroyForcibly();
             return 1;
         } finally {
-            process = null;
+            if (!stopping.isAlive()) {
+                process = null;
+                closeSinks();
+            }
         }
     }
 
@@ -79,23 +113,31 @@ public class ApiProcessSupervisor implements ApiProcessPort {
         stop();
     }
 
-    private void readStdout(Consumer<LogEvent> sink) {
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
+    private synchronized boolean hasExited() {
+        return process == null || !process.isAlive();
+    }
+
+    private void readStdout(Process runningProcess, AsyncSink<LogEvent> sink) {
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(runningProcess.getInputStream(), StandardCharsets.UTF_8))) {
             String line;
             while ((line = reader.readLine()) != null) {
                 sink.accept(logParser.parse(line));
             }
         } catch (Exception ignored) {
+        } finally {
+            sink.close();
         }
     }
 
-    private void readStderr(Consumer<String> sink) {
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getErrorStream(), StandardCharsets.UTF_8))) {
+    private void readStderr(Process runningProcess, AsyncSink<String> sink) {
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(runningProcess.getErrorStream(), StandardCharsets.UTF_8))) {
             String line;
             while ((line = reader.readLine()) != null) {
                 sink.accept(line);
             }
         } catch (Exception ignored) {
+        } finally {
+            sink.close();
         }
     }
 
@@ -110,11 +152,44 @@ public class ApiProcessSupervisor implements ApiProcessPort {
         }
     }
 
-    private static void sleep(Duration duration) {
+    private void closeSinks() {
+        if (stdoutSink != null) {
+            stdoutSink.close();
+            stdoutSink = null;
+        }
+        if (stderrSink != null) {
+            stderrSink.close();
+            stderrSink = null;
+        }
+    }
+
+    private void cleanupFailedStart(
+            Process started,
+            AsyncSink<LogEvent> startedStdoutSink,
+            AsyncSink<String> startedStderrSink) {
+        if (started != null && started.isAlive()) {
+            started.destroyForcibly();
+        }
+        if (startedStdoutSink != null) {
+            startedStdoutSink.close();
+        }
+        if (startedStderrSink != null) {
+            startedStderrSink.close();
+        }
+        if (process == started) {
+            process = null;
+            stdoutSink = null;
+            stderrSink = null;
+        }
+    }
+
+    private static boolean sleep(Duration duration) {
         try {
             Thread.sleep(duration.toMillis());
+            return true;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
+            return false;
         }
     }
 }

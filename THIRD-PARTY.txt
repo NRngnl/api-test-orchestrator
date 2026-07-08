@@ -49,8 +49,8 @@ Bundled in the shaded JAR
 Bundled only in the Linux x64 native archive
 --------------------------------------------
 
-- com.mysql:mysql-connector-j:9.2.0 - GPLv2 with Universal FOSS Exception 1.0
-- com.google.protobuf:protobuf-java:4.29.0 - BSD-3-Clause
+- com.mysql:mysql-connector-j:9.7.0 - GPLv2 with Universal FOSS Exception 1.0
+- com.google.protobuf:protobuf-java:4.31.1 - BSD-3-Clause
 
 The native archive includes MySQL Connector/J license and source metadata under
 licenses/mysql-connector-j/ and the upstream protobuf BSD license under
@@ -62,7 +62,7 @@ Runtime-provided database drivers
 The shaded JAR does not bundle MySQL Connector/J. If you use MySQL, provide the
 driver on the runtime classpath yourself:
 
-- com.mysql:mysql-connector-j:9.2.0 - GPLv2 with Universal FOSS Exception 1.0
-- com.google.protobuf:protobuf-java:4.29.0 - BSD-3-Clause
+- com.mysql:mysql-connector-j:9.7.0 - GPLv2 with Universal FOSS Exception 1.0
+- com.google.protobuf:protobuf-java:4.31.1 - BSD-3-Clause
 
 See README.md for the runtime classpath example.

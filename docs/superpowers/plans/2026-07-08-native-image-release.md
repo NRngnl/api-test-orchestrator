@@ -6,7 +6,7 @@
 
 **Architecture:** The Maven `native` profile builds a native executable directly from the project dependency graph, separate from the shaded JAR. A small packaging script assembles the native binary with project and Connector/J license metadata into a Linux x64 tarball, and the tag-driven GitHub Release workflow uploads both JAR and native assets.
 
-**Tech Stack:** Java 21, Maven, GraalVM Native Build Tools, GitHub Actions, Bash, MySQL Connector/J 9.2.0, protobuf-java 4.29.0.
+**Tech Stack:** Java 21, Maven, GraalVM Native Build Tools, GitHub Actions, Bash, MySQL Connector/J 9.7.0, protobuf-java 4.31.1.
 
 ## Global Constraints
 
@@ -106,7 +106,7 @@ Run:
 mvn -B test
 ```
 
-Expected: `Tests run: 29, Failures: 0, Errors: 0, Skipped: 0`.
+Expected: all tests pass with no failures or errors.
 
 - [ ] **Step 5: Verify the native build produces the executable**
 
@@ -159,62 +159,13 @@ Expected: shell fails with `No such file or directory`.
 
 - [ ] **Step 2: Create `scripts/package-native-release.sh`**
 
-Create the file with this exact content:
+Create the packaging script with these behaviors:
 
-```bash
-#!/usr/bin/env bash
-set -euo pipefail
-
-if [ "$#" -ne 3 ]; then
-  echo "Usage: $0 <native-binary> <release-tag> <output-dir>" >&2
-  exit 64
-fi
-
-binary_path="$1"
-tag="$2"
-output_dir="$3"
-version="${tag#v}"
-
-if [ -z "${version}" ] || [ "${version}" = "${tag}" ]; then
-  echo "Release tag must start with v, for example v0.1.0." >&2
-  exit 64
-fi
-
-if [ ! -x "${binary_path}" ]; then
-  echo "Native binary is missing or not executable: ${binary_path}" >&2
-  exit 66
-fi
-
-connector_version="9.2.0"
-connector_jar="${HOME}/.m2/repository/com/mysql/mysql-connector-j/${connector_version}/mysql-connector-j-${connector_version}.jar"
-
-if [ ! -f "${connector_jar}" ]; then
-  echo "MySQL Connector/J artifact is missing: ${connector_jar}" >&2
-  echo "Run mvn -B -DskipTests dependency:go-offline first." >&2
-  exit 66
-fi
-
-archive_base="api-test-orchestrator-${tag}-linux-x64"
-staging_dir="${output_dir}/${archive_base}"
-license_dir="${staging_dir}/licenses/mysql-connector-j"
-
-rm -rf "${staging_dir}"
-mkdir -p "${license_dir}"
-
-cp "${binary_path}" "${staging_dir}/api-test-orchestrator"
-cp LICENSE NOTICE THIRD-PARTY.txt "${staging_dir}/"
-
-unzip -p "${connector_jar}" LICENSE > "${license_dir}/LICENSE"
-unzip -p "${connector_jar}" README > "${license_dir}/README"
-unzip -p "${connector_jar}" INFO_BIN > "${license_dir}/INFO_BIN"
-unzip -p "${connector_jar}" INFO_SRC > "${license_dir}/INFO_SRC"
-
-tar -C "${output_dir}" -czf "${output_dir}/${archive_base}.tar.gz" "${archive_base}"
-(
-  cd "${output_dir}"
-  sha256sum "${archive_base}.tar.gz" > "${archive_base}.tar.gz.sha256"
-)
-```
+- Accept `<native-binary> <release-tag> <output-dir> [platform]`, defaulting the platform to `linux-x64`.
+- Derive Connector/J from `mysql.connector.version` in `pom.xml`.
+- Resolve Connector/J and its protobuf dependency from Maven's classpath instead of hardcoding transitive versions.
+- Package the native executable, `LICENSE`, `NOTICE`, `THIRD-PARTY.txt`, Connector/J license/source metadata, and the protobuf license.
+- Generate `${archive_base}.tar.gz` and `${archive_base}.tar.gz.sha256`.
 
 - [ ] **Step 3: Make the script executable**
 
@@ -249,6 +200,7 @@ api-test-orchestrator-v0.1.0-linux-x64/licenses/mysql-connector-j/INFO_BIN
 api-test-orchestrator-v0.1.0-linux-x64/licenses/mysql-connector-j/INFO_SRC
 api-test-orchestrator-v0.1.0-linux-x64/licenses/mysql-connector-j/LICENSE
 api-test-orchestrator-v0.1.0-linux-x64/licenses/mysql-connector-j/README
+api-test-orchestrator-v0.1.0-linux-x64/licenses/protobuf-java/LICENSE
 ```
 
 Expected checksum output ends with:
@@ -473,8 +425,8 @@ After the `Bundled in the shaded JAR` dependency list and before `Runtime-provid
 Bundled only in the Linux x64 native archive
 --------------------------------------------
 
-- com.mysql:mysql-connector-j:9.2.0 - GPLv2 with Universal FOSS Exception 1.0
-- com.google.protobuf:protobuf-java:4.29.0 - BSD-3-Clause
+- com.mysql:mysql-connector-j:9.7.0 - GPLv2 with Universal FOSS Exception 1.0
+- com.google.protobuf:protobuf-java:4.31.1 - BSD-3-Clause
 
 The native archive includes MySQL Connector/J license and source metadata under
 licenses/mysql-connector-j/.
@@ -518,7 +470,7 @@ Run:
 mvn -B test
 ```
 
-Expected: `Tests run: 29, Failures: 0, Errors: 0, Skipped: 0`.
+Expected: all tests pass with no failures or errors.
 
 - [ ] **Step 2: Verify the shaded JAR still excludes MySQL and protobuf**
 
@@ -630,10 +582,10 @@ Run:
 ```bash
 gh run list --workflow Release --limit 3
 run_id="$(gh run list --workflow Release --limit 1 --json databaseId --jq '.[0].databaseId')"
-gh run watch "${run_id}" --exit-status
+timeout 60m gh run watch "${run_id}" --exit-status
 ```
 
-Expected: the new `Release` workflow run completes successfully.
+Expected: the new `Release` workflow run completes successfully within 60 minutes.
 
 - [ ] **Step 5: Verify remote tag and release assets**
 

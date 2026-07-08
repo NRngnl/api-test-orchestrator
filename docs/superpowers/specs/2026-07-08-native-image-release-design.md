@@ -13,7 +13,7 @@ workflow for users who want to supply their own JDBC drivers.
 
 ## Licensing Assumption
 
-This project remains Apache-2.0. MySQL Connector/J 9.2.0 declares GPLv2 with the
+This project remains Apache-2.0. MySQL Connector/J 9.7.0 declares GPLv2 with the
 Universal FOSS Exception v1.0. Oracle's Universal FOSS Exception permits
 distribution and linking with OSI-approved or FSF-free software while keeping
 each portion under its own license. Apache-2.0 is OSI-approved, so the native
@@ -88,7 +88,9 @@ The release workflow keeps the current JAR job steps:
 5. Verify MySQL Connector/J and protobuf are not bundled in the shaded JAR.
 6. Prepare JAR and checksum assets.
 
-Then it adds native steps on Ubuntu:
+The planned native-release workflow then adds native steps on Ubuntu. Until that
+workflow task is applied, the current release workflow publishes only the JAR
+assets and runner image.
 
 1. Set up GraalVM for Java 21 with Native Image support.
 2. Build the native binary with `mvn -B -Pnative -DskipTests package`.
