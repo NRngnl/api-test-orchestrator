@@ -1,7 +1,6 @@
 package io.vtz.apitest.interfaces.cli;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.vtz.apitest.domain.log.LogEvent;
 import io.vtz.apitest.domain.log.LogType;
@@ -104,7 +103,7 @@ final class ApiLogFormatter {
     }
 
     private String baseColor(LogEvent event) {
-        if (!logging.colors || event == null || event.structured() == null || logging.jsonLogColors == null) {
+        if (!logging.colors || event == null || !event.structured() || logging.jsonLogColors == null) {
             return null;
         }
         String configured = logging.jsonLogColors.get(event.level().name());
@@ -150,12 +149,11 @@ final class ApiLogFormatter {
     }
 
     private static String highlightRows(String body, LogEvent event, String base) {
-        JsonNode structured = event.structured();
-        JsonNode rows = structured == null ? null : structured.get("rows_affected");
-        if (rows == null || rows.isNull()) {
+        Long rows = event.rowsAffected();
+        if (rows == null) {
             return body;
         }
-        return highlightNumber(body, "rows_affected", rows.asText(), ROWS_HIGHLIGHT, base);
+        return highlightNumber(body, "rows_affected", Long.toString(rows), ROWS_HIGHLIGHT, base);
     }
 
     private static String highlightStatus(String body, LogEvent event, String base) {

@@ -126,7 +126,7 @@ class ApiLogFormatterTest {
     void unstructuredLogsAreLeftUncolored() {
         LogEvent event = new LogEvent(
                 Instant.parse("2026-07-08T00:00:00Z"), LogLevel.ERROR, "not-json", "not-json",
-                null, null, null, null, null, null, null);
+                false, null, null, null, null, null, null, null);
         assertEquals("[api] not-json", new ApiLogFormatter(logging(true, "ERROR", "red")).apiLine(event));
     }
 

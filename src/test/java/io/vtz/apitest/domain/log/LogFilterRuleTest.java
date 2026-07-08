@@ -24,6 +24,6 @@ class LogFilterRuleTest {
     }
 
     private static LogEvent event(LogLevel level, String raw) {
-        return new LogEvent(Instant.now(), level, raw, raw, null, null, null, null, null, null, null);
+        return new LogEvent(Instant.now(), level, raw, raw, true, null, null, null, null, null, null, null);
     }
 }

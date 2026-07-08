@@ -80,12 +80,13 @@ class LogTypeTest {
                 level,
                 message,
                 "{}",
-                null,
+                true,
                 null,
                 null,
                 null,
                 status,
                 sql,
-                error);
+                error,
+                null);
     }
 }
