@@ -57,6 +57,12 @@
             <artifactId>toml4j</artifactId>
             <version>0.7.2</version>
         </dependency>
+        <!-- Pin gson above toml4j's vulnerable transitive 2.8.1 (CVE-2022-25647). -->
+        <dependency>
+            <groupId>com.google.code.gson</groupId>
+            <artifactId>gson</artifactId>
+            <version>2.13.1</version>
+        </dependency>
         <dependency>
             <groupId>com.zaxxer</groupId>
             <artifactId>HikariCP</artifactId>
@@ -76,7 +82,7 @@
         <dependency>
             <groupId>ch.qos.logback</groupId>
             <artifactId>logback-classic</artifactId>
-            <version>1.5.18</version>
+            <version>1.5.33</version>
             <scope>runtime</scope>
         </dependency>
 
