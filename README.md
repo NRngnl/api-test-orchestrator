@@ -144,8 +144,9 @@ color output for CI logs.
 
 ## Releases
 
-GitHub Actions builds release JARs from version tags. To publish a release,
-create and push a tag whose name starts with `v`:
+GitHub Actions builds release JARs and a reusable Docker runner image from
+version tags. To publish a release, create and push a tag whose name starts with
+`v`:
 
 ```bash
 git tag v0.1.0
@@ -158,24 +159,54 @@ test suite, builds the shaded JAR, verifies that MySQL Connector/J and
 
 - `api-test-orchestrator-v0.1.0.jar`
 - `api-test-orchestrator-v0.1.0.jar.sha256`
-- `api-test-orchestrator-v0.1.0-linux-x64.tar.gz`
-- `api-test-orchestrator-v0.1.0-linux-x64.tar.gz.sha256`
 
-The Linux x64 native archive contains a single executable runtime binary plus
-the project and third-party license notices:
+The same workflow also publishes a multi-arch runner image to GHCR:
 
-```bash
-tar -xzf api-test-orchestrator-v0.1.0-linux-x64.tar.gz
-./api-test-orchestrator-v0.1.0-linux-x64/api-test-orchestrator --version
+```text
+ghcr.io/nrngnl/api-test-orchestrator:v0.1.0
+ghcr.io/nrngnl/api-test-orchestrator:0.1.0
+ghcr.io/nrngnl/api-test-orchestrator:latest
 ```
 
-The native binary does not require a JVM and includes MySQL Connector/J for
-MySQL-backed tests. The archive also carries Connector/J license/source
-metadata under `licenses/mysql-connector-j/` and the upstream protobuf BSD
-license under `licenses/protobuf-java/LICENSE`.
+The image contains the shaded JAR, MySQL Connector/J, `godotenv`, and the
+runtime entrypoint. Mock HTTPS certificates can be generated and trusted at
+container startup with environment variables:
+
+```bash
+docker run --rm \
+  -e ATO_MOCK_SSL_GENERATE=true \
+  -e ATO_MOCK_SSL_CERT_PATH=/app/mock.crt \
+  -e ATO_MOCK_SSL_KEY_PATH=/app/mock.key \
+  -e ATO_TRUST_MOCK_SSL_CERT=true \
+  ghcr.io/nrngnl/api-test-orchestrator:v0.1.0 --help
+```
 
 If release creation fails with a permissions error, enable read/write workflow
 permissions for GitHub Actions in the repository settings.
+
+## Scheduled Dependency PRs
+
+`.github/workflows/dependency-update.yml` runs weekly and can also be started
+manually with `workflow_dispatch`. It checks Maven Central for newer releases of
+`io.karatelabs:karate-core` and `com.mysql:mysql-connector-j`, updates
+`karate.version` and `mysql.connector.version` in `pom.xml`, syncs the runner
+Dockerfile's JDBC version default, runs Maven tests plus a package build, and
+opens or updates `automation/update-runtime-dependencies`. The PR body includes
+the validation results, and the workflow fails after PR creation if validation
+does not pass.
+
+The workflow works with the default `GITHUB_TOKEN`, but GitHub may require a
+maintainer to approve PR checks from that token. To have PR checks run
+automatically, configure one of these secret sets:
+
+- GitHub App, recommended for automation:
+  - `DEPENDENCY_UPDATE_APP_ID`
+  - `DEPENDENCY_UPDATE_APP_PRIVATE_KEY`
+- Fine-grained PAT:
+  - `DEPENDENCY_UPDATE_TOKEN`
+
+The token or app needs repository permissions for Contents read/write and Pull
+requests read/write on this repository.
 
 ## License and JDBC Drivers
 
@@ -190,11 +221,8 @@ licenses Connector/J under GPLv2 with the Universal FOSS Exception, so keeping
 it as a runtime-provided driver avoids presenting the executable JAR as if every
 bundled component were Apache-2.0.
 
-The Linux x64 native archive is different: it bundles MySQL Connector/J and
-protobuf-java so the native executable can connect to MySQL without a JVM
-classpath. That archive includes Connector/J license and source metadata under
-`licenses/mysql-connector-j/` and the upstream protobuf license under
-`licenses/protobuf-java/LICENSE`.
+The Docker runner image provides MySQL Connector/J as a runtime library under
+`/app/lib` instead of bundling it into the shaded JAR.
 
 For MySQL-backed tests, download or resolve the driver in the consuming project
 and put it on the runtime classpath:

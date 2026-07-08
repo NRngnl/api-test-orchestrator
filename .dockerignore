@@ -1,0 +1,9 @@
+.git
+.github
+.claude
+.DS_Store
+docs
+logs
+reports
+target/*
+!target/*.jar

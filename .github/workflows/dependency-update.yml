@@ -1,0 +1,134 @@
+name: Dependency Updates
+
+on:
+  schedule:
+    - cron: "17 19 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: dependency-updates
+  cancel-in-progress: true
+
+jobs:
+  runtime-libs:
+    name: Update runtime libraries
+    runs-on: ubuntu-latest
+    env:
+      UPDATE_BRANCH: automation/update-runtime-dependencies
+      USE_GITHUB_APP_TOKEN: ${{ secrets.DEPENDENCY_UPDATE_APP_ID != '' && secrets.DEPENDENCY_UPDATE_APP_PRIVATE_KEY != '' }}
+
+    steps:
+      - name: Create GitHub App token
+        if: env.USE_GITHUB_APP_TOKEN == 'true'
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.DEPENDENCY_UPDATE_APP_ID }}
+          private-key: ${{ secrets.DEPENDENCY_UPDATE_APP_PRIVATE_KEY }}
+
+      - name: Check out repository
+        uses: actions/checkout@v5
+        with:
+          token: ${{ steps.app-token.outputs.token || secrets.DEPENDENCY_UPDATE_TOKEN || github.token }}
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Update Maven dependency properties
+        run: |
+          mvn -B org.codehaus.mojo:versions-maven-plugin:2.21.0:update-properties \
+            -DincludeProperties=karate.version,mysql.connector.version \
+            -DallowSnapshots=false \
+            -DgenerateBackupPoms=false
+
+      - name: Sync runner dependency defaults
+        run: scripts/sync-runner-deps.sh
+
+      - name: Check for dependency changes
+        id: diff
+        run: |
+          if git diff --quiet -- pom.xml docker/runner/Dockerfile; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Read updated versions
+        if: steps.diff.outputs.changed == 'true'
+        id: versions
+        run: |
+          karate_version="$(mvn -q help:evaluate -Dexpression=karate.version -DforceStdout)"
+          mysql_connector_version="$(mvn -q help:evaluate -Dexpression=mysql.connector.version -DforceStdout)"
+
+          echo "karate=${karate_version}" >> "$GITHUB_OUTPUT"
+          echo "mysql=${mysql_connector_version}" >> "$GITHUB_OUTPUT"
+
+      - name: Run tests
+        if: steps.diff.outputs.changed == 'true'
+        id: tests
+        continue-on-error: true
+        run: mvn -B test
+
+      - name: Build release jar
+        if: steps.diff.outputs.changed == 'true'
+        id: package
+        continue-on-error: true
+        run: mvn -B -DskipTests package
+
+      - name: Create or update pull request
+        if: steps.diff.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token || secrets.DEPENDENCY_UPDATE_TOKEN || github.token }}
+          BASE_BRANCH: ${{ github.ref_name }}
+          KARATE_VERSION: ${{ steps.versions.outputs.karate }}
+          MYSQL_CONNECTOR_VERSION: ${{ steps.versions.outputs.mysql }}
+          TEST_RESULT: ${{ steps.tests.outcome }}
+          PACKAGE_RESULT: ${{ steps.package.outcome }}
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git checkout -B "$UPDATE_BRANCH"
+          git add pom.xml docker/runner/Dockerfile
+          git commit -m "chore: update runtime test dependencies"
+          git push --force origin "$UPDATE_BRANCH"
+
+          title="chore: update runtime test dependencies"
+          body="$(mktemp)"
+          cat > "$body" <<EOF
+          Updates runtime test dependencies discovered by the scheduled workflow.
+
+          - Karate: ${KARATE_VERSION}
+          - MySQL Connector/J: ${MYSQL_CONNECTOR_VERSION}
+
+          Validation in this workflow:
+          - mvn -B test: ${TEST_RESULT}
+          - mvn -B -DskipTests package: ${PACKAGE_RESULT}
+
+          If this workflow uses the default GITHUB_TOKEN, GitHub may require
+          maintainer approval before PR checks run. Configure either
+          DEPENDENCY_UPDATE_APP_ID plus DEPENDENCY_UPDATE_APP_PRIVATE_KEY, or
+          DEPENDENCY_UPDATE_TOKEN, if PR-created checks must run automatically.
+          EOF
+
+          if gh pr view "$UPDATE_BRANCH" >/dev/null 2>&1; then
+            gh pr edit "$UPDATE_BRANCH" --title "$title" --body-file "$body"
+          else
+            gh pr create --base "$BASE_BRANCH" --head "$UPDATE_BRANCH" --title "$title" --body-file "$body"
+          fi
+
+      - name: Fail if validation failed
+        if: steps.diff.outputs.changed == 'true' && (steps.tests.outcome != 'success' || steps.package.outcome != 'success')
+        run: |
+          echo "Dependency update PR was created, but validation failed." >&2
+          exit 1
