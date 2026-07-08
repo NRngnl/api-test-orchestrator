@@ -1,20 +1,30 @@
 package io.vtz.apitest.interfaces.facade;
 
+import io.vtz.apitest.application.port.CommandRunnerPort;
 import io.vtz.apitest.application.port.DatabasePort;
 import io.vtz.apitest.application.port.MockServerPort;
 import io.vtz.apitest.application.service.ChecksumService;
 import io.vtz.apitest.application.service.DateFactory;
+import io.vtz.apitest.application.service.DotenvParser;
 import io.vtz.apitest.application.service.IdentifierFactory;
 import io.vtz.apitest.domain.db.InsertResult;
+import io.vtz.apitest.domain.log.LogEvent;
 import io.vtz.apitest.domain.mock.MockServerSpec;
 import io.vtz.apitest.domain.mock.RunningMockServer;
+import io.vtz.apitest.domain.process.CommandResult;
+import io.vtz.apitest.domain.process.ExecCommandSpec;
+import io.vtz.apitest.infrastructure.config.FrameworkConfig;
+import io.vtz.apitest.interfaces.cli.ApiLogFormatter;
 import org.junit.jupiter.api.Test;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -41,7 +51,8 @@ class FeatureBridgeTest {
                 new MockServerFacade(mockPort),
                 new DateFactory(),
                 new IdentifierFactory(),
-                new ChecksumService());
+                new ChecksumService(),
+                processFacade(new RecordingCommandRunnerPort(new CommandResult(0, ""))));
 
         assertEquals(2, bridge.dbQuery("SELECT 1").size());
         assertEquals(3, bridge.dbUpdate("UPDATE cases SET status = 'CLOSED'"));
@@ -65,6 +76,50 @@ class FeatureBridgeTest {
 
         assertEquals("id", replacement.id());
         assertEquals(List.of("stop:existing", "start:39992"), mockPort.events);
+    }
+
+    @Test
+    void execCmdMergesEnvFileDefaultsWithOverridesAndReturnsResult() throws Exception {
+        Path envFile = Files.createTempFile("batch", ".env");
+        Files.writeString(envFile, "FOO=fromfile\nBAR=filebar\n");
+        RecordingCommandRunnerPort runner = new RecordingCommandRunnerPort(new CommandResult(0, "done"));
+        FeatureBridge bridge = new FeatureBridge(
+                (DatabaseFacade) null,
+                new MockServerFacade(new RecordingMockServerPort()),
+                new DateFactory(),
+                new IdentifierFactory(),
+                new ChecksumService(),
+                processFacade(runner));
+
+        CommandResult result = bridge.execCmd(Map.of(
+                "args", List.of("/go/bin/batch"),
+                "envFile", envFile.toString(),
+                "env", Map.of("BAR", "override", "BATCH_ID", "2")));
+
+        assertEquals(0, result.exitCode());
+        assertEquals("done", result.output());
+        assertEquals(List.of("/go/bin/batch"), runner.lastSpec.command());
+        assertEquals(Map.of("FOO", "fromfile", "BAR", "filebar"), runner.lastSpec.envDefaults());
+        assertEquals(Map.of("BAR", "override", "BATCH_ID", "2"), runner.lastSpec.envOverrides());
+    }
+
+    private static ProcessFacade processFacade(CommandRunnerPort runner) {
+        return new ProcessFacade(runner, new DotenvParser(), new ApiLogFormatter(new FrameworkConfig.Logging()));
+    }
+
+    private static class RecordingCommandRunnerPort implements CommandRunnerPort {
+        private final CommandResult result;
+        private ExecCommandSpec lastSpec;
+
+        private RecordingCommandRunnerPort(CommandResult result) {
+            this.result = result;
+        }
+
+        @Override
+        public CommandResult run(ExecCommandSpec spec, Consumer<LogEvent> onLogLine) {
+            this.lastSpec = spec;
+            return result;
+        }
     }
 
     private static class RecordingDatabasePort implements DatabasePort {

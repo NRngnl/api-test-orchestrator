@@ -4,6 +4,7 @@ import io.vtz.apitest.application.service.ChecksumService;
 import io.vtz.apitest.application.service.DateFactory;
 import io.vtz.apitest.application.service.IdentifierFactory;
 import io.vtz.apitest.domain.mock.RunningMockServer;
+import io.vtz.apitest.domain.process.CommandResult;
 
 import java.sql.Date;
 import java.sql.Timestamp;
@@ -20,14 +21,16 @@ public class FeatureBridge {
     private final DateFactory dates;
     private final IdentifierFactory identifiers;
     private final ChecksumService checksums;
+    private final ProcessFacade process;
 
     public FeatureBridge(
             DatabaseFacade database,
             MockServerFacade mockServers,
             DateFactory dates,
             IdentifierFactory identifiers,
-            ChecksumService checksums) {
-        this(database == null ? Map.of() : Map.of("default", database), "default", mockServers, dates, identifiers, checksums);
+            ChecksumService checksums,
+            ProcessFacade process) {
+        this(database == null ? Map.of() : Map.of("default", database), "default", mockServers, dates, identifiers, checksums, process);
     }
 
     public FeatureBridge(
@@ -36,13 +39,15 @@ public class FeatureBridge {
             MockServerFacade mockServers,
             DateFactory dates,
             IdentifierFactory identifiers,
-            ChecksumService checksums) {
+            ChecksumService checksums,
+            ProcessFacade process) {
         this.databases = Collections.unmodifiableMap(databases == null ? Map.of() : new LinkedHashMap<>(databases));
         this.defaultDatabaseName = defaultDatabaseName == null || defaultDatabaseName.isBlank() ? "default" : defaultDatabaseName;
         this.mockServers = mockServers;
         this.dates = dates;
         this.identifiers = identifiers;
         this.checksums = checksums;
+        this.process = process;
     }
 
     public DatabaseFacade db(String name) {
@@ -163,6 +168,10 @@ public class FeatureBridge {
 
     public void stopAllMockServers() {
         mockServers.stopAll();
+    }
+
+    public CommandResult execCmd(Map<String, Object> options) {
+        return process.execCmd(options);
     }
 
     private DatabaseFacade database() {

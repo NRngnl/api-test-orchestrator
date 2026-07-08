@@ -27,7 +27,7 @@ import java.util.Map;
  * highlights. {@code API_ERROR}, {@code API_BODY_DUMP} and {@code API_GENERAL} render with their
  * configured base tint only; this keeps colors configurable instead of hard-coded per type.
  */
-final class ApiLogFormatter {
+public final class ApiLogFormatter {
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     /** Control Sequence Introducer: ESC + '[' built from the char code to avoid raw ESC bytes in source. */
@@ -61,7 +61,7 @@ final class ApiLogFormatter {
 
     private final FrameworkConfig.Logging logging;
 
-    ApiLogFormatter(FrameworkConfig.Logging logging) {
+    public ApiLogFormatter(FrameworkConfig.Logging logging) {
         this.logging = logging == null ? new FrameworkConfig.Logging() : logging;
     }
 
@@ -71,6 +71,15 @@ final class ApiLogFormatter {
 
     String indentedApiLine(LogEvent event) {
         return format("  ", event);
+    }
+
+    /**
+     * Renders a log line with a caller-supplied prefix (e.g. {@code "[batch] "}), applying the same
+     * structured-JSON coloring as {@link #apiLine(LogEvent)}. Lets non-API processes stream their
+     * output through the identical formatter under a custom label.
+     */
+    public String line(String prefix, LogEvent event) {
+        return format(prefix == null ? "" : prefix, event);
     }
 
     private String format(String prefix, LogEvent event) {

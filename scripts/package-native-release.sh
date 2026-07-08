@@ -24,7 +24,7 @@ if [ ! -x "${binary_path}" ]; then
   exit 66
 fi
 
-connector_version="9.2.0"
+connector_version="9.7.0"
 protobuf_version="4.29.0"
 protobuf_license_source="${repo_root}/licenses/protobuf-java/LICENSE"
 

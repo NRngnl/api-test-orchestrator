@@ -2,6 +2,7 @@ package io.vtz.apitest.interfaces.facade;
 
 import io.vtz.apitest.application.service.ChecksumService;
 import io.vtz.apitest.application.service.DateFactory;
+import io.vtz.apitest.application.service.DotenvParser;
 import io.vtz.apitest.application.service.FixtureRowPreparer;
 import io.vtz.apitest.application.service.IdentifierFactory;
 import io.vtz.apitest.domain.db.DatabaseTarget;
@@ -9,6 +10,8 @@ import io.vtz.apitest.infrastructure.config.FrameworkConfig;
 import io.vtz.apitest.infrastructure.config.FrameworkConfigLoader;
 import io.vtz.apitest.infrastructure.db.JdbcDatabaseGateway;
 import io.vtz.apitest.infrastructure.karate.KarateMockServerRegistry;
+import io.vtz.apitest.infrastructure.process.ProcessCommandRunner;
+import io.vtz.apitest.interfaces.cli.ApiLogFormatter;
 
 import java.nio.file.Path;
 import java.util.Collections;
@@ -25,6 +28,7 @@ public class ApiTestOrchestrator implements AutoCloseable {
     private final DateFactory dateFactory;
     private final IdentifierFactory identifierFactory;
     private final ChecksumService checksumService;
+    private final ProcessFacade processFacade;
     private final FeatureBridge featureBridge;
 
     public ApiTestOrchestrator(FrameworkConfig config) {
@@ -34,13 +38,18 @@ public class ApiTestOrchestrator implements AutoCloseable {
         this.mockServerFacade = new MockServerFacade(PROCESS_MOCK_SERVERS);
         this.dateFactory = new DateFactory();
         this.checksumService = new ChecksumService();
+        this.processFacade = new ProcessFacade(
+                new ProcessCommandRunner(),
+                new DotenvParser(),
+                new ApiLogFormatter(config.logging));
         this.featureBridge = new FeatureBridge(
                 databaseFacades,
                 config.defaultDatabaseName(),
                 mockServerFacade,
                 dateFactory,
                 identifierFactory,
-                checksumService);
+                checksumService,
+                processFacade);
     }
 
     public static ApiTestOrchestrator fromEnvironment() {
@@ -104,6 +113,10 @@ public class ApiTestOrchestrator implements AutoCloseable {
 
     public ChecksumService checksum() {
         return checksumService;
+    }
+
+    public ProcessFacade process() {
+        return processFacade;
     }
 
     public FeatureBridge helpers() {
