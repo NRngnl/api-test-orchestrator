@@ -45,6 +45,17 @@ class FrameworkConfigLoaderTest {
                     INFO: green
                     WARN: yellow
                     ERROR: magenta
+                  jsonLogTypeColors:
+                    apiError: red
+                    apiSql: bright-blue
+                    apiBodyDump: green
+                    apiRequest: bright-white dimmed
+                    apiGeneral: bright-white dimmed
+                  jsonLogHighlightColors:
+                    sql: bright-yellow
+                    rowsAffected: bright-green
+                    statusOk: green
+                    statusError: bright-red
                 """);
 
         FrameworkConfig config = new FrameworkConfigLoader(Map.of()).load(configPath);
@@ -54,5 +65,14 @@ class FrameworkConfigLoaderTest {
         assertEquals("green", config.logging.jsonLogColors.get("INFO"));
         assertEquals("yellow", config.logging.jsonLogColors.get("WARN"));
         assertEquals("magenta", config.logging.jsonLogColors.get("ERROR"));
+        assertEquals("red", config.logging.jsonLogTypeColors.get("apiError"));
+        assertEquals("bright-blue", config.logging.jsonLogTypeColors.get("apiSql"));
+        assertEquals("green", config.logging.jsonLogTypeColors.get("apiBodyDump"));
+        assertEquals("bright-white dimmed", config.logging.jsonLogTypeColors.get("apiRequest"));
+        assertEquals("bright-white dimmed", config.logging.jsonLogTypeColors.get("apiGeneral"));
+        assertEquals("bright-yellow", config.logging.jsonLogHighlightColors.get("sql"));
+        assertEquals("bright-green", config.logging.jsonLogHighlightColors.get("rowsAffected"));
+        assertEquals("green", config.logging.jsonLogHighlightColors.get("statusOk"));
+        assertEquals("bright-red", config.logging.jsonLogHighlightColors.get("statusError"));
     }
 }

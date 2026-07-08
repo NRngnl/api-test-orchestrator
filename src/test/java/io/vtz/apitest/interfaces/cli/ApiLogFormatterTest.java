@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
 import java.util.LinkedHashMap;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -25,6 +26,12 @@ class ApiLogFormatterTest {
     private static final String RESET = sgr("0");
     private static final String STATUS_ERROR = sgr("31", "1"); // red, bold — status >= 400
     private static final String STATUS_OK = sgr("32");         // green    — status <  400
+    private static final String BRIGHT_BLUE = sgr("94");
+    private static final String BRIGHT_WHITE_DIMMED = sgr("97") + sgr("2");
+    private static final String BRIGHT_RED = sgr("91");
+    private static final String MAGENTA = sgr("35");
+    private static final String BRIGHT_CYAN = sgr("96");
+    private static final String BLUE = sgr("34");
     private static final String ERROR_JSON = "{\"level\":\"ERROR\",\"msg\":\"boom\"}";
 
     // --- helpers -----------------------------------------------------------------------------
@@ -41,10 +48,15 @@ class ApiLogFormatterTest {
         return new ApiLogFormatter(new FrameworkConfig.Logging()).apiLine(new JsonLogParser().parse(json));
     }
 
+    private static String apiLine(String json, FrameworkConfig.Logging logging) {
+        return new ApiLogFormatter(logging).apiLine(new JsonLogParser().parse(json));
+    }
+
     private static FrameworkConfig.Logging logging(boolean colors, String level, String color) {
         FrameworkConfig.Logging logging = new FrameworkConfig.Logging();
         logging.colors = colors;
         logging.jsonLogColors = new LinkedHashMap<>();
+        logging.jsonLogTypeColors = new LinkedHashMap<>();
         logging.jsonLogColors.put(level, color);
         return logging;
     }
@@ -107,6 +119,21 @@ class ApiLogFormatterTest {
     }
 
     @Test
+    void baseColorPrefersTypeConfigurationOverLevelConfiguration() {
+        FrameworkConfig.Logging logging = new FrameworkConfig.Logging();
+        logging.jsonLogColors = new LinkedHashMap<>(Map.of("INFO", "green"));
+        logging.jsonLogTypeColors = new LinkedHashMap<>(Map.of(
+                "apiSql", "bright-blue",
+                "apiRequest", "bright-white dimmed"));
+
+        String sqlLine = apiLine("{\"level\":\"INFO\",\"msg\":\"SQL\",\"sql\":\"SELECT 1\"}", logging);
+        String requestLine = apiLine("{\"level\":\"INFO\",\"msg\":\"REQUEST\",\"status\":200}", logging);
+
+        assertEquals(BRIGHT_BLUE, baseOf(sqlLine));
+        assertEquals(BRIGHT_WHITE_DIMMED, baseOf(requestLine));
+    }
+
+    @Test
     void unknownConfiguredColorLeavesLineUncolored() {
         String line = new ApiLogFormatter(logging(true, "ERROR", "brand-red"))
                 .apiLine(new JsonLogParser().parse(ERROR_JSON));
@@ -158,6 +185,28 @@ class ApiLogFormatterTest {
     void highlightsRowsAffected() {
         String line = apiLine("{\"level\":\"INFO\",\"msg\":\"SQL\",\"sql\":\"SELECT 1\",\"rows_affected\":42}");
         assertHighlighted(line, "42");
+    }
+
+    @Test
+    void highlightColorsFollowConfiguration() {
+        FrameworkConfig.Logging logging = new FrameworkConfig.Logging();
+        logging.jsonLogHighlightColors = new LinkedHashMap<>(Map.of(
+                "sql", "magenta",
+                "rowsAffected", "bright-cyan",
+                "statusOk", "blue",
+                "statusError", "bright-red"));
+
+        String sqlLine = apiLine(
+                "{\"level\":\"INFO\",\"msg\":\"SQL\",\"sql\":\"SELECT 1\",\"rows_affected\":42}",
+                logging);
+        assertTrue(sqlLine.contains("\"sql\":\"" + MAGENTA + "SELECT 1" + RESET), sqlLine);
+        assertTrue(sqlLine.contains("\"rows_affected\":" + BRIGHT_CYAN + "42" + RESET), sqlLine);
+
+        String okLine = apiLine("{\"level\":\"INFO\",\"msg\":\"REQUEST\",\"status\":200}", logging);
+        assertTrue(okLine.contains(BLUE + "200" + RESET), okLine);
+
+        String errorLine = apiLine("{\"level\":\"INFO\",\"msg\":\"REQUEST\",\"status\":500}", logging);
+        assertTrue(errorLine.contains(BRIGHT_RED + "500" + RESET), errorLine);
     }
 
     @Test
