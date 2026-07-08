@@ -28,11 +28,12 @@ class RequestLogCorrelatorTest {
                 LogLevel.INFO,
                 message,
                 message,
-                null,
+                true,
                 requestId,
                 uri,
                 "GET",
                 status,
+                null,
                 null,
                 null);
     }

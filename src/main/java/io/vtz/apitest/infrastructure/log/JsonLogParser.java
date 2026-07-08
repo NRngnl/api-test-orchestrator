@@ -18,19 +18,21 @@ public class JsonLogParser {
                     LogLevel.parse(text(node, "level")),
                     text(node, "msg"),
                     line,
-                    node,
+                    true,
                     text(node, "request_id"),
                     text(node, "uri"),
                     text(node, "method"),
                     integer(node, "status"),
                     text(node, "sql"),
-                    text(node, "err"));
+                    text(node, "err"),
+                    longValue(node, "rows_affected"));
         } catch (Exception ignored) {
             return new LogEvent(
                     Instant.now(),
                     LogLevel.INFO,
                     line,
                     line,
+                    false,
                     null,
                     null,
                     null,
@@ -49,6 +51,11 @@ public class JsonLogParser {
     private static Integer integer(JsonNode node, String field) {
         JsonNode value = node.get(field);
         return value == null || value.isNull() ? null : value.asInt();
+    }
+
+    private static Long longValue(JsonNode node, String field) {
+        JsonNode value = node.get(field);
+        return value == null || !value.isNumber() ? null : value.asLong();
     }
 
     private static Instant parseInstant(String value) {
