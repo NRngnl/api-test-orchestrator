@@ -8,6 +8,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   release:
     name: Build release JAR
@@ -15,10 +19,10 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "21"
@@ -42,6 +46,8 @@ jobs:
           echo "version=${version}" >> "${GITHUB_OUTPUT}"
           echo "jar_name=api-test-orchestrator-${tag}.jar" >> "${GITHUB_OUTPUT}"
           echo "checksum_name=api-test-orchestrator-${tag}.jar.sha256" >> "${GITHUB_OUTPUT}"
+          echo "native_name=api-test-orchestrator-${tag}-linux-x64.tar.gz" >> "${GITHUB_OUTPUT}"
+          echo "native_checksum_name=api-test-orchestrator-${tag}-linux-x64.tar.gz.sha256" >> "${GITHUB_OUTPUT}"
 
       - name: Set Maven release version
         run: mvn -B org.codehaus.mojo:versions-maven-plugin:2.21.0:set -DnewVersion="${{ steps.release.outputs.version }}" -DgenerateBackupPoms=false
@@ -83,6 +89,84 @@ jobs:
           cp "${jar_path}" "${jar_name}"
           sha256sum "${jar_name}" > "${checksum_name}"
 
+      - name: Set up GraalVM
+        uses: graalvm/setup-graalvm@v1
+        with:
+          distribution: graalvm
+          java-version: "25"
+          github-token: ${{ github.token }}
+
+      - name: Configure GraalVM Maven toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mkdir -p "${HOME}/.m2"
+          cat > "${HOME}/.m2/toolchains.xml" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <toolchains>
+            <toolchain>
+              <type>jdk</type>
+              <provides>
+                <version>25</version>
+              </provides>
+              <configuration>
+                <jdkHome>${GRAALVM_HOME}</jdkHome>
+              </configuration>
+            </toolchain>
+          </toolchains>
+          EOF
+
+      - name: Build native binary
+        run: mvn -B -Pnative,native-ci -DskipTests org.apache.maven.plugins:maven-toolchains-plugin:3.2.0:toolchain clean package
+
+      - name: Verify native binary
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          native_path="target/api-test-orchestrator"
+          test -x "${native_path}"
+          test "$("${native_path}" --version)" = "${{ steps.release.outputs.version }}"
+          "${native_path}" --help >/tmp/api-test-orchestrator-help.txt
+
+      - name: Prepare native release assets
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          ./scripts/package-native-release.sh \
+            target/api-test-orchestrator \
+            "${{ steps.release.outputs.tag }}" \
+            "${PWD}"
+
+      - name: Verify native release assets
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          tag="${{ steps.release.outputs.tag }}"
+          native_name="${{ steps.release.outputs.native_name }}"
+          native_checksum_name="${{ steps.release.outputs.native_checksum_name }}"
+          archive_base="api-test-orchestrator-${tag}-linux-x64"
+
+          test -f "${native_name}"
+          test -f "${native_checksum_name}"
+
+          tar -tzf "${native_name}" > native-contents.txt
+
+          grep -Fx "${archive_base}/api-test-orchestrator" native-contents.txt
+          grep -Fx "${archive_base}/LICENSE" native-contents.txt
+          grep -Fx "${archive_base}/NOTICE" native-contents.txt
+          grep -Fx "${archive_base}/THIRD-PARTY.txt" native-contents.txt
+          grep -Fx "${archive_base}/licenses/mysql-connector-j/LICENSE" native-contents.txt
+          grep -Fx "${archive_base}/licenses/mysql-connector-j/README" native-contents.txt
+          grep -Fx "${archive_base}/licenses/mysql-connector-j/INFO_BIN" native-contents.txt
+          grep -Fx "${archive_base}/licenses/mysql-connector-j/INFO_SRC" native-contents.txt
+          grep -Fx "${archive_base}/licenses/protobuf-java/LICENSE" native-contents.txt
+
+          awk -v file="${native_name}" 'NF == 2 && $2 == file && $1 ~ /^[0-9a-f]{64}$/ { found = 1 } END { exit found ? 0 : 1 }' "${native_checksum_name}"
+
       - name: Create or update GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -93,13 +177,22 @@ jobs:
           tag="${{ steps.release.outputs.tag }}"
           jar_name="${{ steps.release.outputs.jar_name }}"
           checksum_name="${{ steps.release.outputs.checksum_name }}"
+          native_name="${{ steps.release.outputs.native_name }}"
+          native_checksum_name="${{ steps.release.outputs.native_checksum_name }}"
 
           if gh release view "${tag}" >/dev/null 2>&1; then
-            gh release upload "${tag}" "${jar_name}" "${checksum_name}" --clobber
+            gh release upload "${tag}" \
+              "${jar_name}" \
+              "${checksum_name}" \
+              "${native_name}" \
+              "${native_checksum_name}" \
+              --clobber
           else
             gh release create "${tag}" \
               "${jar_name}" \
               "${checksum_name}" \
+              "${native_name}" \
+              "${native_checksum_name}" \
               --title "${tag}" \
               --generate-notes \
               --verify-tag

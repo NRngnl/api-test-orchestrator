@@ -2,7 +2,8 @@ Third-Party Software Notices
 ============================
 
 This project is licensed under Apache License 2.0. The shaded executable JAR
-also bundles third-party software that remains under its own license terms.
+and Linux x64 native archive bundle third-party software that remains under its
+own license terms.
 
 Bundled in the shaded JAR
 -------------------------
@@ -44,6 +45,16 @@ Bundled in the shaded JAR
 - org.thymeleaf:thymeleaf:3.1.5.RELEASE - Apache-2.0
 - org.unbescape:unbescape:1.1.6.RELEASE - Apache-2.0
 - org.yaml:snakeyaml:2.6 - Apache-2.0
+
+Bundled only in the Linux x64 native archive
+--------------------------------------------
+
+- com.mysql:mysql-connector-j:9.2.0 - GPLv2 with Universal FOSS Exception 1.0
+- com.google.protobuf:protobuf-java:4.29.0 - BSD-3-Clause
+
+The native archive includes MySQL Connector/J license and source metadata under
+licenses/mysql-connector-j/ and the upstream protobuf BSD license under
+licenses/protobuf-java/LICENSE.
 
 Runtime-provided database drivers
 ---------------------------------

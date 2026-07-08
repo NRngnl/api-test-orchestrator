@@ -144,6 +144,21 @@ test suite, builds the shaded JAR, verifies that MySQL Connector/J and
 
 - `api-test-orchestrator-v0.1.0.jar`
 - `api-test-orchestrator-v0.1.0.jar.sha256`
+- `api-test-orchestrator-v0.1.0-linux-x64.tar.gz`
+- `api-test-orchestrator-v0.1.0-linux-x64.tar.gz.sha256`
+
+The Linux x64 native archive contains a single executable runtime binary plus
+the project and third-party license notices:
+
+```bash
+tar -xzf api-test-orchestrator-v0.1.0-linux-x64.tar.gz
+./api-test-orchestrator-v0.1.0-linux-x64/api-test-orchestrator --version
+```
+
+The native binary does not require a JVM and includes MySQL Connector/J for
+MySQL-backed tests. The archive also carries Connector/J license/source
+metadata under `licenses/mysql-connector-j/` and the upstream protobuf BSD
+license under `licenses/protobuf-java/LICENSE`.
 
 If release creation fails with a permissions error, enable read/write workflow
 permissions for GitHub Actions in the repository settings.
@@ -160,6 +175,12 @@ MySQL Connector/J is intentionally not bundled into the shaded JAR. Oracle
 licenses Connector/J under GPLv2 with the Universal FOSS Exception, so keeping
 it as a runtime-provided driver avoids presenting the executable JAR as if every
 bundled component were Apache-2.0.
+
+The Linux x64 native archive is different: it bundles MySQL Connector/J and
+protobuf-java so the native executable can connect to MySQL without a JVM
+classpath. That archive includes Connector/J license and source metadata under
+`licenses/mysql-connector-j/` and the upstream protobuf license under
+`licenses/protobuf-java/LICENSE`.
 
 For MySQL-backed tests, download or resolve the driver in the consuming project
 and put it on the runtime classpath:
