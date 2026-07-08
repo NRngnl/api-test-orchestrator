@@ -1,14 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [ "$#" -ne 3 ]; then
-  echo "Usage: $0 <native-binary> <release-tag> <output-dir>" >&2
+if [ "$#" -lt 3 ] || [ "$#" -gt 4 ]; then
+  echo "Usage: $0 <native-binary> <release-tag> <output-dir> [platform]" >&2
   exit 64
 fi
 
 binary_path="$1"
 tag="$2"
 output_dir="$3"
+platform="${4:-linux-x64}"
 version="${tag#v}"
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd "${script_dir}/.." && pwd)"
@@ -58,7 +59,7 @@ if [ ! -f "${protobuf_license_source}" ]; then
   exit 66
 fi
 
-archive_base="api-test-orchestrator-${tag}-linux-x64"
+archive_base="api-test-orchestrator-${tag}-${platform}"
 staging_dir="${output_dir}/${archive_base}"
 connector_license_dir="${staging_dir}/licenses/mysql-connector-j"
 protobuf_license_dir="${staging_dir}/licenses/protobuf-java"
@@ -78,5 +79,9 @@ cp "${protobuf_license_source}" "${protobuf_license_dir}/LICENSE"
 tar -C "${output_dir}" -czf "${output_dir}/${archive_base}.tar.gz" "${archive_base}"
 (
   cd "${output_dir}"
-  sha256sum "${archive_base}.tar.gz" > "${archive_base}.tar.gz.sha256"
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "${archive_base}.tar.gz" > "${archive_base}.tar.gz.sha256"
+  else
+    shasum -a 256 "${archive_base}.tar.gz" > "${archive_base}.tar.gz.sha256"
+  fi
 )
