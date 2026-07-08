@@ -43,6 +43,37 @@ class MockServerFacadeTest {
         assertEquals("classpath:new.feature", port.lastSpec.feature());
     }
 
+    @Test
+    void sslMocksUseDefaultCertificatePathsFromEnvironmentWhenOptionsOmitThem() {
+        RecordingMockServerPort port = new RecordingMockServerPort();
+        MockServerFacade facade = new MockServerFacade(port, Map.of(
+                "ATO_MOCK_SSL_CERT_PATH", "/app/mock.crt",
+                "ATO_MOCK_SSL_KEY_PATH", "/app/mock.key"));
+
+        facade.start(Map.of("mock", "classpath:new.feature", "port", 39992, "ssl", true));
+
+        assertEquals("/app/mock.crt", port.lastSpec.certPath());
+        assertEquals("/app/mock.key", port.lastSpec.keyPath());
+    }
+
+    @Test
+    void explicitSslCertificateOptionsOverrideEnvironmentDefaults() {
+        RecordingMockServerPort port = new RecordingMockServerPort();
+        MockServerFacade facade = new MockServerFacade(port, Map.of(
+                "ATO_MOCK_SSL_CERT_PATH", "/app/default.crt",
+                "ATO_MOCK_SSL_KEY_PATH", "/app/default.key"));
+
+        facade.start(Map.of(
+                "mock", "classpath:new.feature",
+                "port", 39992,
+                "ssl", true,
+                "cert", "/custom/mock.crt",
+                "key", "/custom/mock.key"));
+
+        assertEquals("/custom/mock.crt", port.lastSpec.certPath());
+        assertEquals("/custom/mock.key", port.lastSpec.keyPath());
+    }
+
     private static class RecordingMockServerPort implements MockServerPort {
         private MockServerSpec lastSpec;
         private List<RunningMockServer> runningServers = List.of();

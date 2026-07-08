@@ -100,9 +100,69 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
+  image:
+    name: Build runner image
+    needs: jar
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Set Maven release version
+        run: mvn -B org.codehaus.mojo:versions-maven-plugin:2.21.0:set -DnewVersion="${{ needs.jar.outputs.version }}" -DgenerateBackupPoms=false
+
+      - name: Build shaded JAR
+        run: mvn -B -DskipTests package
+
+      - name: Set image name
+        id: image
+        shell: bash
+        run: |
+          set -euo pipefail
+          owner="$(printf '%s' "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')"
+          echo "name=ghcr.io/${owner}/api-test-orchestrator" >> "$GITHUB_OUTPUT"
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Build and push runner image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/runner/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          build-args: |
+            ORCHESTRATOR_VERSION=${{ needs.jar.outputs.version }}
+          tags: |
+            ${{ steps.image.outputs.name }}:${{ needs.jar.outputs.tag }}
+            ${{ steps.image.outputs.name }}:${{ needs.jar.outputs.version }}
+            ${{ steps.image.outputs.name }}:latest
+
   publish:
     name: Publish release
-    needs: jar
+    needs: [jar, image]
     runs-on: ubuntu-latest
     permissions:
       contents: write

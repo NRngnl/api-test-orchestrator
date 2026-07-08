@@ -8,14 +8,23 @@ import java.util.List;
 import java.util.Map;
 
 public class MockServerFacade {
+    private static final String DEFAULT_CERT_ENV = "ATO_MOCK_SSL_CERT_PATH";
+    private static final String DEFAULT_KEY_ENV = "ATO_MOCK_SSL_KEY_PATH";
+
     private final MockServerPort mockServers;
+    private final Map<String, String> variables;
 
     public MockServerFacade(MockServerPort mockServers) {
+        this(mockServers, System.getenv());
+    }
+
+    MockServerFacade(MockServerPort mockServers, Map<String, String> variables) {
         this.mockServers = mockServers;
+        this.variables = Map.copyOf(variables == null ? Map.of() : variables);
     }
 
     public RunningMockServer start(Map<String, Object> options) {
-        MockServerSpec spec = toSpec(options);
+        MockServerSpec spec = toSpec(options, variables);
         stopExistingServerOnFixedPort(spec);
         return mockServers.start(spec);
     }
@@ -47,7 +56,7 @@ public class MockServerFacade {
                 .forEach(mockServers::stop);
     }
 
-    private static MockServerSpec toSpec(Map<String, Object> options) {
+    private static MockServerSpec toSpec(Map<String, Object> options, Map<String, String> variables) {
         String feature = string(options.getOrDefault("feature", options.get("mock")));
         int port = integer(options.get("port"), 0);
         boolean ssl = bool(options.get("ssl"), false);
@@ -58,6 +67,14 @@ public class MockServerFacade {
         String keyPath = string(options.get("keyPath"));
         if (keyPath == null) {
             keyPath = string(options.get("key"));
+        }
+        if (ssl) {
+            if (certPath == null || certPath.isBlank()) {
+                certPath = string(variables.get(DEFAULT_CERT_ENV));
+            }
+            if (keyPath == null || keyPath.isBlank()) {
+                keyPath = string(variables.get(DEFAULT_KEY_ENV));
+            }
         }
         String pathPrefix = string(options.get("pathPrefix"));
         boolean javaBridgeEnabled = bool(options.get("javaBridgeEnabled"), true);
