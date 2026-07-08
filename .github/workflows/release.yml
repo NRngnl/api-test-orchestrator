@@ -112,18 +112,20 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v5
 
-      - name: Set up Java
-        uses: actions/setup-java@v5
+      - name: Download release JAR artifact
+        uses: actions/download-artifact@v4
         with:
-          distribution: temurin
-          java-version: "21"
-          cache: maven
+          name: release-jar
+          path: dist
 
-      - name: Set Maven release version
-        run: mvn -B org.codehaus.mojo:versions-maven-plugin:2.21.0:set -DnewVersion="${{ needs.jar.outputs.version }}" -DgenerateBackupPoms=false
+      - name: Prepare Docker build context
+        shell: bash
+        run: |
+          set -euo pipefail
 
-      - name: Build shaded JAR
-        run: mvn -B -DskipTests package
+          mkdir -p target
+          cp "dist/api-test-orchestrator-${{ needs.jar.outputs.tag }}.jar" \
+            "target/api-test-orchestrator-${{ needs.jar.outputs.version }}.jar"
 
       - name: Set image name
         id: image
