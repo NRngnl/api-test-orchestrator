@@ -24,9 +24,9 @@ public class MockServerFacade {
     }
 
     public RunningMockServer start(Map<String, Object> options) {
-        MockServerSpec spec = toSpec(options, variables);
-        stopExistingServerOnFixedPort(spec);
-        return mockServers.start(spec);
+        // The registry owns fixed-port replacement (serialized under its per-port lock); a second
+        // uncoordinated eviction here would race a concurrent start/stop on that port.
+        return mockServers.start(toSpec(options, variables));
     }
 
     public RunningMockServer start(String feature) {
@@ -45,15 +45,12 @@ public class MockServerFacade {
         return mockServers.runningServers();
     }
 
-    private void stopExistingServerOnFixedPort(MockServerSpec spec) {
-        if (spec.port() == 0) {
-            return;
-        }
-        mockServers.runningServers().stream()
-                .filter(server -> server.port() == spec.port())
-                .map(RunningMockServer::id)
-                .toList()
-                .forEach(mockServers::stop);
+    public void setVariable(int port, String key, Object value) {
+        mockServers.setVariable(port, key, value);
+    }
+
+    public Object getVariable(int port, String key) {
+        return mockServers.getVariable(port, key);
     }
 
     private static MockServerSpec toSpec(Map<String, Object> options, Map<String, String> variables) {
