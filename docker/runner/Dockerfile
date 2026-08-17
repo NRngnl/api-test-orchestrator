@@ -1,7 +1,7 @@
 FROM public.ecr.aws/amazoncorretto/amazoncorretto:25-al2023-headless
 
 ARG ORCHESTRATOR_VERSION
-ARG MYSQL_CONNECTOR_VERSION=9.7.0
+ARG MYSQL_CONNECTOR_VERSION=26.7.0
 
 WORKDIR /app
 
