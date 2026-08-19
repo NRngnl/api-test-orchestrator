@@ -14,6 +14,8 @@ public record ApiProcessSpec(
         Duration healthInterval,
         Map<String, String> environment
 ) {
+    private static final Duration MIN_WAIT = Duration.ofMillis(1);
+
     public ApiProcessSpec {
         if (command == null || command.isEmpty()) {
             throw new IllegalArgumentException("command is required");
@@ -21,6 +23,12 @@ public record ApiProcessSpec(
         command = List.copyOf(command);
         healthTimeout = healthTimeout == null ? Duration.ofSeconds(30) : healthTimeout;
         healthInterval = healthInterval == null ? Duration.ofSeconds(1) : healthInterval;
+        if (healthTimeout.compareTo(MIN_WAIT) < 0) {
+            throw new IllegalArgumentException("healthTimeout must be at least 1 millisecond");
+        }
+        if (healthInterval.compareTo(MIN_WAIT) < 0) {
+            throw new IllegalArgumentException("healthInterval must be at least 1 millisecond");
+        }
         environment = Map.copyOf(environment == null ? Map.of() : environment);
     }
 }

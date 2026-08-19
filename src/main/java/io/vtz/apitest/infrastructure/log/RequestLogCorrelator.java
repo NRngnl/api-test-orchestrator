@@ -34,7 +34,9 @@ public class RequestLogCorrelator {
                     .findFirst()
                     .orElse(null);
         }
-        return requestId == null ? Optional.empty() : Optional.ofNullable(byRequestId.get(requestId));
+        return requestId == null
+                ? Optional.empty()
+                : Optional.of(List.copyOf(byRequestId.getOrDefault(requestId, List.of())));
     }
 
     public synchronized List<LogEvent> lastRequestLogs() {

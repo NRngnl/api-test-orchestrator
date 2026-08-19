@@ -33,8 +33,17 @@ Then features can call Java-backed helpers:
 * def sqs = ato.mocks().start({ feature: 'classpath:aws/sqs-success.feature', port: 39992, ssl: true })
 * match ato.checksum().md5('{"batchID":2}') == 'c59b879de192eae4320a260a504ce0be'
 * assert ato.helpers().isBefore('2025-10-01', '2025-10-31')
+* def batch = ato.helpers().execCmd({ args: ['/go/bin/batch'], envFile: '/app/.env', env: { BATCH_ID: '2' } })
+* match batch.exitCode() == 0
 * ato.mocks().stopAll()
 ```
+
+`execCmd` runs the supplied argument list without a shell wrapper. `envFile`
+loads dotenv-style defaults without overwriting the parent process environment,
+and `env` entries are explicit overrides. Command output is streamed through the
+same JSON log formatter as API logs with a `[batch]` prefix unless `logPrefix`
+is supplied. Child stdin is closed by default, and `timeoutSeconds` defaults to
+600 seconds so a stuck batch command cannot block the scenario indefinitely.
 
 A compatibility bridge is also available when an existing suite already has
 global helper names:
@@ -168,9 +177,9 @@ ghcr.io/nrngnl/api-test-orchestrator:0.1.0
 ghcr.io/nrngnl/api-test-orchestrator:latest
 ```
 
-The image contains the shaded JAR, MySQL Connector/J, `godotenv`, and the
-runtime entrypoint. Mock HTTPS certificates can be generated and trusted at
-container startup with environment variables:
+The image contains the shaded JAR, MySQL Connector/J, and the runtime
+entrypoint. Mock HTTPS certificates can be generated and trusted at container
+startup with environment variables:
 
 ```bash
 docker run --rm \
@@ -229,10 +238,10 @@ and put it on the runtime classpath:
 
 ```bash
 mvn dependency:copy \
-  -Dartifact=com.mysql:mysql-connector-j:9.2.0 \
+  -Dartifact=com.mysql:mysql-connector-j:9.7.0 \
   -DoutputDirectory=target/drivers
 
-java -cp "target/api-test-orchestrator-0.1.0-SNAPSHOT.jar:target/drivers/mysql-connector-j-9.2.0.jar" \
+java -cp "target/api-test-orchestrator-0.1.0-SNAPSHOT.jar:target/drivers/mysql-connector-j-9.7.0.jar" \
   io.vtz.apitest.interfaces.cli.ApiTestOrchestratorCli \
   --config examples/api-test-orchestrator.yml \
   /tests/create_case.feature
