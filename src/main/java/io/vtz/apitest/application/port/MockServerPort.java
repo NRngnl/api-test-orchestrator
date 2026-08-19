@@ -13,4 +13,11 @@ public interface MockServerPort {
     void stopAll();
 
     List<RunningMockServer> runningServers();
+
+    default void setVariable(int port, String key, Object value) {
+    }
+
+    default Object getVariable(int port, String key) {
+        return null;
+    }
 }

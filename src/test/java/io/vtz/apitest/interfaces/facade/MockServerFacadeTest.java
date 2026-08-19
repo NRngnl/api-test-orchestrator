@@ -27,7 +27,7 @@ class MockServerFacadeTest {
     }
 
     @Test
-    void stopsExistingServerOnSameFixedPortBeforeStartingReplacement() {
+    void startDelegatesToPortWithoutEvicting() {
         RecordingMockServerPort port = new RecordingMockServerPort();
         port.runningServers = List.of(new RunningMockServer(
                 "old-server",
@@ -39,7 +39,9 @@ class MockServerFacadeTest {
 
         facade.start(Map.of("mock", "classpath:new.feature", "port", 39992, "ssl", true));
 
-        assertEquals(List.of("stop:old-server", "start:39992"), port.events);
+        // The registry owns fixed-port replacement (under its per-port lock); the facade must NOT do a
+        // second, uncoordinated eviction — it only delegates the start.
+        assertEquals(List.of("start:39992"), port.events);
         assertEquals("classpath:new.feature", port.lastSpec.feature());
     }
 

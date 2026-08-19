@@ -170,6 +170,14 @@ public class FeatureBridge {
         mockServers.stopAll();
     }
 
+    public void setMockVariable(int port, String key, Object value) {
+        mockServers.setVariable(port, key, value);
+    }
+
+    public Object getMockVariable(int port, String key) {
+        return mockServers.getVariable(port, key);
+    }
+
     public CommandResult execCmd(Map<String, Object> options) {
         return process.execCmd(options);
     }
