@@ -8,7 +8,7 @@ import io.vtz.apitest.application.service.IdentifierFactory;
 import io.vtz.apitest.domain.db.DatabaseTarget;
 import io.vtz.apitest.infrastructure.config.FrameworkConfig;
 import io.vtz.apitest.infrastructure.config.FrameworkConfigLoader;
-import io.vtz.apitest.infrastructure.db.JdbcDatabaseGateway;
+import io.vtz.apitest.infrastructure.db.DatabaseGatewayRegistry;
 import io.vtz.apitest.infrastructure.karate.KarateMockServerRegistry;
 import io.vtz.apitest.infrastructure.process.ProcessCommandRunner;
 import io.vtz.apitest.interfaces.cli.ApiLogFormatter;
@@ -21,6 +21,7 @@ import java.util.Set;
 
 public class ApiTestOrchestrator implements AutoCloseable {
     private static final KarateMockServerRegistry PROCESS_MOCK_SERVERS = new KarateMockServerRegistry();
+    private static final DatabaseGatewayRegistry PROCESS_DATABASE_GATEWAYS = new DatabaseGatewayRegistry();
 
     private final FrameworkConfig config;
     private final Map<String, DatabaseFacade> databaseFacades;
@@ -126,7 +127,7 @@ public class ApiTestOrchestrator implements AutoCloseable {
     @Override
     public void close() {
         mockServerFacade.stopAll();
-        databaseFacades.values().forEach(DatabaseFacade::close);
+        PROCESS_DATABASE_GATEWAYS.closeAll();
     }
 
     private DatabaseFacade dbOrNull() {
@@ -138,7 +139,7 @@ public class ApiTestOrchestrator implements AutoCloseable {
         Map<String, DatabaseFacade> facades = new LinkedHashMap<>();
         for (Map.Entry<String, DatabaseTarget> entry : config.toDatabaseTargets().entrySet()) {
             facades.put(entry.getKey(), new DatabaseFacade(
-                    new JdbcDatabaseGateway(entry.getValue()),
+                    PROCESS_DATABASE_GATEWAYS.acquire(entry.getValue()),
                     new FixtureRowPreparer(config.toFixturePolicy(entry.getKey()), identifierFactory::randomString)));
         }
         return Collections.unmodifiableMap(facades);

@@ -24,6 +24,10 @@ function fn() {
 }
 ```
 
+Karate evaluates `karate-config.js` once per scenario, so this constructs an
+orchestrator per scenario. That is fine: database connection pools are shared
+per target for the life of the process, so no connections leak as the suite grows.
+
 Then features can call Java-backed helpers:
 
 ```gherkin
